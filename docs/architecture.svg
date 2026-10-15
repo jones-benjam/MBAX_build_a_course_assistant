@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <title>Course assistant architecture</title>
+  <desc>Course files are parsed locally into page text and page images, indexed three ways (BM25 keyword, text embeddings, visual embeddings), fused with reciprocal rank fusion, reranked by a multimodal reranker, and answered by a vision LLM whose JSON output is validated and checked against its sources before the Gradio UI shows the answer, excerpts and slide images. Embeddings, reranking and the LLM run on class endpoints; everything else runs locally.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9 z" fill="#5F5E5A"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="620" rx="12" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <text x="40" y="36" font-size="16" font-weight="bold" fill="#2C2C2A">Course assistant: hybrid RAG over course materials</text>
+
+  <!-- Row 1: document preparation (local) -->
+  <g>
+    <rect x="40" y="60" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="170" y="84" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Course files from Canvas</text>
+    <text x="170" y="103" text-anchor="middle" font-size="12" fill="#5F5E5A">PDF, PPTX, DOCX, TXT, MD</text>
+    <text x="170" y="119" text-anchor="middle" font-size="12" fill="#5F5E5A">duplicates detected by file hash</text>
+  </g>
+  <g>
+    <rect x="340" y="60" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="470" y="84" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Parse and render</text>
+    <text x="470" y="103" text-anchor="middle" font-size="12" fill="#5F5E5A">LibreOffice converts PPTX/DOCX to PDF</text>
+    <text x="470" y="119" text-anchor="middle" font-size="12" fill="#5F5E5A">PyMuPDF extracts text, renders pages</text>
+  </g>
+  <g>
+    <rect x="640" y="60" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="770" y="84" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Page text + page image</text>
+    <text x="770" y="103" text-anchor="middle" font-size="12" fill="#5F5E5A">one PNG per page or slide</text>
+    <text x="770" y="119" text-anchor="middle" font-size="12" fill="#5F5E5A">chunks keep document, page, image</text>
+  </g>
+  <line x1="300" y1="95" x2="336" y2="95" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="600" y1="95" x2="636" y2="95" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Bus from page text/images to the three indexes -->
+  <path d="M770 130 L770 160 L170 160" fill="none" stroke="#5F5E5A" stroke-width="1.2"/>
+  <line x1="170" y1="160" x2="170" y2="196" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="470" y1="160" x2="470" y2="196" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="770" y1="160" x2="770" y2="196" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Row 2: three separate indexes -->
+  <g>
+    <rect x="40" y="200" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="170" y="224" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Keyword index</text>
+    <text x="170" y="243" text-anchor="middle" font-size="12" fill="#5F5E5A">BM25 (bm25s), in memory</text>
+    <text x="170" y="259" text-anchor="middle" font-size="12" fill="#5F5E5A">runs locally</text>
+  </g>
+  <g>
+    <rect x="340" y="200" width="260" height="70" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="470" y="224" text-anchor="middle" font-weight="bold" fill="#26215C">Text embedding index</text>
+    <text x="470" y="243" text-anchor="middle" font-size="12" fill="#534AB7">ChromaDB "text" · Nemotron-3-Embed</text>
+    <text x="470" y="259" text-anchor="middle" font-size="12" fill="#534AB7">class endpoint port 9002</text>
+  </g>
+  <g>
+    <rect x="640" y="200" width="260" height="70" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="770" y="224" text-anchor="middle" font-weight="bold" fill="#26215C">Visual embedding index</text>
+    <text x="770" y="243" text-anchor="middle" font-size="12" fill="#534AB7">ChromaDB "visual" · Qwen3-VL-Embedding-2B</text>
+    <text x="770" y="259" text-anchor="middle" font-size="12" fill="#534AB7">class endpoint port 9003</text>
+  </g>
+
+  <!-- Bus from the indexes to fusion -->
+  <line x1="170" y1="270" x2="170" y2="300" stroke="#5F5E5A" stroke-width="1.2"/>
+  <line x1="770" y1="270" x2="770" y2="300" stroke="#5F5E5A" stroke-width="1.2"/>
+  <path d="M170 300 L770 300" fill="none" stroke="#5F5E5A" stroke-width="1.2"/>
+  <line x1="470" y1="270" x2="470" y2="336" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Row 3: question, fusion + rerank, LLM -->
+  <g>
+    <rect x="40" y="340" width="180" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="130" y="364" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Student question</text>
+    <text x="130" y="383" text-anchor="middle" font-size="12" fill="#5F5E5A">or quiz topic, plus the</text>
+    <text x="130" y="399" text-anchor="middle" font-size="12" fill="#5F5E5A">selected documents</text>
+  </g>
+  <g>
+    <rect x="260" y="340" width="420" height="70" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="470" y="362" text-anchor="middle" font-weight="bold" fill="#26215C">Fuse and rerank candidates</text>
+    <text x="470" y="381" text-anchor="middle" font-size="12" fill="#534AB7">reciprocal rank fusion of the three result lists (local), then</text>
+    <text x="470" y="397" text-anchor="middle" font-size="12" fill="#534AB7">Qwen3-VL-Reranker-2B scores text + slide image · port 9004 · toggle</text>
+  </g>
+  <g>
+    <rect x="720" y="340" width="200" height="70" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="820" y="364" text-anchor="middle" font-weight="bold" fill="#26215C">Vision LLM</text>
+    <text x="820" y="383" text-anchor="middle" font-size="12" fill="#534AB7">Qwen3.6-35B · port 9001</text>
+    <text x="820" y="399" text-anchor="middle" font-size="12" fill="#534AB7">excerpts + up to 4 slide images</text>
+  </g>
+  <line x1="220" y1="375" x2="256" y2="375" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="680" y1="375" x2="716" y2="375" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Row 4: validation and UI (local) -->
+  <line x1="820" y1="410" x2="820" y2="446" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="500" y="450" width="420" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="710" y="472" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Validate structured output (local)</text>
+    <text x="710" y="491" text-anchor="middle" font-size="12" fill="#5F5E5A">JSON {answer, sources, missing_information} checked with pydantic</text>
+    <text x="710" y="507" text-anchor="middle" font-size="12" fill="#5F5E5A">only supplied evidence ids may be cited · source-support check</text>
+  </g>
+  <line x1="500" y1="485" x2="464" y2="485" stroke="#5F5E5A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="40" y="450" width="420" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
+    <text x="250" y="472" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Gradio UI: Materials · Ask · Quiz</text>
+    <text x="250" y="491" text-anchor="middle" font-size="12" fill="#5F5E5A">answer with document, page, excerpt and slide image</text>
+    <text x="250" y="507" text-anchor="middle" font-size="12" fill="#5F5E5A">quiz with fixed hidden key, score, explanations, sources</text>
+  </g>
+
+  <!-- Legend -->
+  <rect x="40" y="550" width="14" height="14" rx="3" fill="#F1EFE8" stroke="#5F5E5A"/>
+  <text x="62" y="562" font-size="12" fill="#2C2C2A">runs locally in the Python app</text>
+  <rect x="280" y="550" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#534AB7"/>
+  <text x="302" y="562" font-size="12" fill="#2C2C2A">class model endpoint (plain-HTTP vLLM server, key read from .env)</text>
+  <text x="40" y="592" font-size="12" fill="#5F5E5A">Removing a document purges its chunks, page images and entries in all three indexes. An endpoint that is down becomes a warning; the other channels still answer.</text>
+</svg>
