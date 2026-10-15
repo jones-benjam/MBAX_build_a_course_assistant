@@ -21,7 +21,7 @@
     <rect x="340" y="60" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
     <text x="470" y="84" text-anchor="middle" font-weight="bold" fill="#2C2C2A">Parse and render</text>
     <text x="470" y="103" text-anchor="middle" font-size="12" fill="#5F5E5A">LibreOffice converts PPTX/DOCX to PDF</text>
-    <text x="470" y="119" text-anchor="middle" font-size="12" fill="#5F5E5A">PyMuPDF: text, page PNGs, blank-GIF fix</text>
+    <text x="470" y="119" text-anchor="middle" font-size="12" fill="#5F5E5A">PyMuPDF: text, PNGs; Pillow: GIF repair</text>
   </g>
   <g>
     <rect x="640" y="60" width="260" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/>
