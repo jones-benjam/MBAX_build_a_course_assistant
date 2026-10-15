@@ -24,7 +24,7 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 7 Thorough testing incl. **real services** | done: endpoint formats verified (`docs/ENDPOINTS.md`), HTTP clients fixed, 10 live tests pass on the real endpoints + course files, UI walked through on real data; fixes: LibreOffice app-bundle lookup, block-tag vs slide-number citation rescue | `step-7-testing` → PR #7 |
 | 8 Evaluation (5–10 questions, rerank on vs off) | done: `scripts/evaluate.py`, 10 questions, results in `data/results/`, write-up `docs/EVALUATION.md` | `step-8-evaluation` → PR #8 |
 | 9 README, SVG architecture diagram, real screenshots | done in PRs: #18 AGENTS.md/CONTRIBUTING, #19 `docs/architecture.svg`, #20 real screenshots, #22 README | `step-9-*` |
-| 10 Issues, reviews, fresh-clone check, submit | todo | |
+| 10 Issues, reviews, fresh-clone check, submit | in progress: PRs #1–#8 and #18–#23 reviewed by a non-author (#25, #27, #29 still need reviews); offline fresh-clone check passed (#16, malu/Vanessa); live fresh-clone check and Canvas submission (#17) remain | issues #16, #17 |
 
 PRs are **stacked**: each PR's base is the previous step's branch. Merge in order and
 retarget the next PR to `main` after each merge (or merge the whole stack from

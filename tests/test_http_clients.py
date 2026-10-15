@@ -190,3 +190,33 @@ def test_http_error_message_includes_server_detail_for_debugging():
     rec = Recorder([(400, {"error": {"message": "Unsupported content part: image", "type": "BadRequest"}})])
     with pytest.raises(ServiceUnavailable, match="Unsupported content part"):
         HttpVisualEmbed(cfg(), transport=rec.transport()).embed_text(["x"])
+
+
+def _raw_transport(status: int, text: str, json_body: bool) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if json_body:
+            return httpx.Response(status, json={"error": {"message": text}})
+        return httpx.Response(status, text=text)
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("json_body", [True, False])
+def test_server_echoing_the_key_is_redacted(json_body):
+    # A server that echoes the credential (JSON or plain-text error body) must not
+    # get it into ServiceUnavailable, which the UI and logs display.
+    client = HttpTextEmbed(cfg(), transport=_raw_transport(401, f"invalid key {KEY} for this model", json_body))
+    with pytest.raises(ServiceUnavailable) as exc:
+        client.embed(["x"])
+    msg = str(exc.value)
+    assert KEY not in msg
+    assert "***" in msg and "401" in msg
+
+
+def test_key_straddling_the_truncation_point_leaves_no_fragment():
+    # Pad so the key crosses the 200-character cut-off; redaction happens before truncation.
+    padding = "x" * (200 - len(KEY) // 2)
+    client = HttpTextEmbed(cfg(), transport=_raw_transport(500, padding + KEY + " tail", True))
+    with pytest.raises(ServiceUnavailable) as exc:
+        client.embed(["x"])
+    msg = str(exc.value)
+    assert KEY[: len(KEY) // 2] not in msg
