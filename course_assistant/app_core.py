@@ -4,6 +4,7 @@ from __future__ import annotations
 from .config import Settings, load_settings
 from .index import ChunkStore, HybridRetriever
 from .library import Library
+from .qa import Answer, QuestionAnswerer
 from .services import Services, get_services
 
 
@@ -19,6 +20,7 @@ class Assistant:
         # Order matters: the store must know a chunk before the retriever maps hits to it.
         self.library.add_listener(self.store)
         self.library.add_listener(self.retriever)
+        self.qa = QuestionAnswerer(self.retriever, self.services.llm, top_k=self.settings.top_k)
 
     def add_document(self, path, display_name: str | None = None):
         return self.library.add_document(path, display_name)
@@ -28,3 +30,6 @@ class Assistant:
 
     def retrieve(self, query: str, **kw):
         return self.retriever.retrieve(query, **kw)
+
+    def ask(self, question: str, **kw) -> Answer:
+        return self.qa.answer(question, **kw)
