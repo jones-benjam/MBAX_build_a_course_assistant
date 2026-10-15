@@ -207,12 +207,12 @@ set MOCK_SERVICES=1
 python -m pytest -q
 ```
 
-The offline suite has 84 tests: unit tests for parsing, chunking, indexing, fusion,
+The offline suite has 85 tests: unit tests for parsing, chunking, indexing, fusion,
 JSON validation, source support, quiz grading, animated-GIF handling, key redaction
 in error messages and the HTTP request formats, and end-to-end tests through the app
 for adding, duplicate uploads, removal, answering, missing information, quizzes, and
-services being unavailable. Three PowerPoint tests are skipped if LibreOffice is not
-installed, so 81 run on a machine without it.
+services being unavailable. Three LibreOffice-dependent tests (two PPTX and one DOCX)
+are skipped if LibreOffice is not installed, so 82 run on a machine without it.
 
 With a filled `.env`, ten more tests check the real services and the real course
 files: each endpoint, duplicate upload, a syllabus answer, the meme found through

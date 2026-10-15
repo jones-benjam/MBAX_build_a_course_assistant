@@ -212,10 +212,11 @@ def test_server_echoing_the_key_is_redacted(json_body):
     assert "***" in msg and "401" in msg
 
 
-def test_key_straddling_the_truncation_point_leaves_no_fragment():
-    # Pad so the key crosses the 200-character cut-off; redaction happens before truncation.
+@pytest.mark.parametrize("json_body", [True, False])
+def test_key_straddling_the_truncation_point_leaves_no_fragment(json_body):
+    # Both JSON and plain-text errors must redact before the 200-character cut-off.
     padding = "x" * (200 - len(KEY) // 2)
-    client = HttpTextEmbed(cfg(), transport=_raw_transport(500, padding + KEY + " tail", True))
+    client = HttpTextEmbed(cfg(), transport=_raw_transport(500, padding + KEY + " tail", json_body))
     with pytest.raises(ServiceUnavailable) as exc:
         client.embed(["x"])
     msg = str(exc.value)
