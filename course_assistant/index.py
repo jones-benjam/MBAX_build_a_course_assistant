@@ -133,7 +133,7 @@ class TextVectorIndex(_ChromaBase):
             )
 
     def search(self, query: str, k: int, doc_ids: set[str] | None = None) -> list[tuple[str, float]]:
-        emb = self._svc.text_embed.embed([query])[0]
+        emb = self._svc.text_embed.embed_query([query])[0]
         return [(cid, score) for cid, score, _ in self._query(emb, k, doc_ids)]
 
 

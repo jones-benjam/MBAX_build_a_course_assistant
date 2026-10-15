@@ -30,7 +30,11 @@ class LLMClient(ABC):
 class TextEmbedClient(ABC):
     @abstractmethod
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """Embed a batch of texts. Returns one vector per input, same order."""
+        """Embed a batch of passages (indexed text). Returns one vector per input, same order."""
+
+    def embed_query(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed search queries. Models with asymmetric query/passage prompts override this."""
+        return self.embed(texts)
 
 
 class VisualEmbedClient(ABC):

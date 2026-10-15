@@ -79,7 +79,7 @@ class Settings:
 
 def _svc(prefix: str, default_port: int, default_model: str) -> ServiceConfig:
     return ServiceConfig(
-        base_url=os.environ.get(f"{prefix}_BASE_URL", f"https://dobolyi.com:{default_port}/v1"),
+        base_url=os.environ.get(f"{prefix}_BASE_URL", f"http://dobolyi.com:{default_port}"),
         api_key=os.environ.get(f"{prefix}_API_KEY", ""),
         model=os.environ.get(f"{prefix}_MODEL", default_model),
     )

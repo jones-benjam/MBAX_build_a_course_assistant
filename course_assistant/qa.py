@@ -33,7 +33,7 @@ SYSTEM_PROMPT = """You are a course assistant. Answer the student's question usi
 Each block is tagged [S<n>] and comes from a specific document and page/slide; some include the slide image.
 Rules:
 - Use the text AND the images. When asked to describe or explain a slide, diagram, chart or meme, describe what the image actually shows.
-- Cite the blocks you relied on by their numbers. Never cite a block you did not use and never invent sources.
+- Cite the blocks you relied on by their TAG numbers (the n in [S<n>]). Tag numbers are NOT page or slide numbers: a block tagged [S2] may come from slide 17; cite 2, not 17. Never cite a block you did not use and never invent sources.
 - If the evidence does not contain the information needed, say so plainly, set "missing_information" to true and cite nothing. Do not guess or use outside knowledge.
 - Be concise and specific; quote key phrases from the evidence where useful.
 Respond with a single JSON object and nothing else:
@@ -126,7 +126,7 @@ def build_messages(question: str, evidence: list[Evidence], *, max_images: int =
     blocks, images = [], []
     for i, ev in enumerate(evidence, start=1):
         c = ev.chunk
-        header = f"[S{i}] {c.doc_name} — page/slide {c.page_number}"
+        header = f"[S{i}] (tag {i}) {c.doc_name} — page/slide {c.page_number}"
         if ev.image_path and len(images) < max_images and ev.image_path.exists():
             images.append(ev.image_path)
             header += f" (slide image #{len(images)} attached)"
@@ -161,6 +161,38 @@ def support_score(answer: str, sources: list[Source]) -> float:
     for s in sources:
         pool |= _content_words(s.excerpt)
     return len(words & pool) / len(words)
+
+
+def rescue_citations(text: str, ids: list[int], evidence: list[Evidence]) -> tuple[list[int], list[str]]:
+    """Correct citations where the model wrote a page/slide number instead of a block tag.
+
+    Both are small integers, so a model that reasons "slide 11 says..." sometimes cites 11
+    even though the KV-cache slide was tagged [S4]. For each cited id whose block barely
+    overlaps `text`, if an evidence block *from page/slide <id>* overlaps it clearly better,
+    the citation is moved to that block. Returns the corrected ids and human-readable notes.
+    """
+    notes: list[str] = []
+    out: list[int] = []
+    words = _content_words(text)
+    if not words:
+        return list(ids), notes
+
+    def overlap(ev: Evidence) -> float:
+        return len(words & _content_words(ev.chunk.text)) / len(words)
+
+    for sid in ids:
+        cited = evidence[sid - 1] if 1 <= sid <= len(evidence) else None
+        cited_overlap = overlap(cited) if cited is not None else 0.0
+        same_page = [(i + 1, ev) for i, ev in enumerate(evidence) if ev.chunk.page_number == sid and i + 1 != sid]
+        if same_page and cited_overlap < 0.1:
+            tag, ev = max(same_page, key=lambda t: overlap(t[1]))
+            if overlap(ev) >= max(0.2, cited_overlap * 2):
+                notes.append(f"Citation [S{sid}] looked like a page/slide number; it was mapped to [S{tag}] "
+                             f"({ev.chunk.doc_name}, page/slide {ev.chunk.page_number}), which supports the text.")
+                sid = tag
+        if sid not in out:
+            out.append(sid)
+    return out, notes
 
 
 def _resolve_sources(ids: list[int], evidence: list[Evidence]) -> tuple[list[Source], list[int]]:
@@ -224,7 +256,9 @@ class QuestionAnswerer:
             return Answer(question, text, [], True, True, 1.0, warnings, latency_s=time.time() - t0,
                           reranked=retrieval.reranked, n_candidates=len(evidence))
 
-        sources, dropped = _resolve_sources(payload.sources, evidence)
+        ids, notes = rescue_citations(payload.answer, payload.sources, evidence)
+        warnings.extend(notes)
+        sources, dropped = _resolve_sources(ids, evidence)
         if dropped:
             warnings.append(f"Model cited non-existent evidence ids {dropped}; they were removed.")
         if not sources:

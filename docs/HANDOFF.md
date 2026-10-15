@@ -21,7 +21,7 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 4 Grounded answers (JSON `{answer, sources, missing_information}`, support check) | done, 12 tests | `step-4-answering` → PR #4 |
 | 5 Quizzes (fixed key, hidden solutions, grading, sources) | done, 8 tests | `step-5-quiz` → PR #5 |
 | 6 Gradio UI (Materials / Ask / Quiz, light+dark, screenshot script) | done, 5 tests | `step-6-ui` → PR #6 |
-| 7 Thorough testing incl. **real services** | **next** | |
+| 7 Thorough testing incl. **real services** | done: endpoint formats verified (`docs/ENDPOINTS.md`), HTTP clients fixed, 10 live tests pass on the real endpoints + course files, UI walked through on real data; fixes: LibreOffice app-bundle lookup, block-tag vs slide-number citation rescue | `step-7-testing` → PR #7 |
 | 8 Evaluation (5–10 questions, rerank on vs off) | todo | |
 | 9 README, SVG architecture diagram, real screenshots | todo | |
 | 10 Issues, reviews, fresh-clone check, submit | todo | |
@@ -30,7 +30,7 @@ PRs are **stacked**: each PR's base is the previous step's branch. Merge in orde
 retarget the next PR to `main` after each merge (or merge the whole stack from
 `step-6-ui` once reviewed). `step-6-ui` contains everything.
 
-`./run_tests.sh` → 49 tests pass offline (`MOCK_SERVICES=1`), `pyflakes` clean.
+`./run_tests.sh` → 71 tests pass offline (`MOCK_SERVICES=1`; 2 skip without LibreOffice, 10 live tests skip without `LIVE_SERVICES=1`), `pyflakes` clean.
 
 ## Everything that has only been checked with mock services
 
@@ -40,7 +40,11 @@ retarget the next PR to `main` after each merge (or merge the whole stack from
 - The exact request/response format of each class endpoint (see below).
 - `docs/screenshots/*` were captured on mock services and must be re-captured.
 
-## Class endpoints: what to verify first (Step 7)
+## Class endpoints: verified 2026-10-15 — see `docs/ENDPOINTS.md`
+
+The table below is the pre-verification guess, kept for history. The verified formats are in `docs/ENDPOINTS.md`.
+
+### Original notes (superseded)
 
 `course_assistant/services/http_clients.py` assumes OpenAI-compatible vLLM routes.
 Check each server's `/docs` or `/openapi.json` and adjust `_payload` / parsing:
@@ -55,6 +59,27 @@ Check each server's `/docs` or `/openapi.json` and adjust `_payload` / parsing:
 
 API key for all: the value in the class list (store in `.env` only; never commit).
 Keys are sent as `Authorization: Bearer <key>`.
+
+## Step 7 findings on the real services (2026-10-15)
+
+- All four services accepted the corrected request shapes on the first live run; the
+  10 live tests (`tests/test_live_services.py`) pass in about 70 s.
+- Week 2 deck: 42 slides ingest in ~45 s (one visual-embedding request per slide).
+  The meme on slide 33 ranks first for the meme question through all three channels
+  (keyword on the slide title, text, visual) with and without the reranker, and the
+  LLM describes the image ("One Does Not Simply" / Boromir) correctly.
+- Latency: answers ~2–3 s without the reranker, ~5–9 s with it (images are sent to
+  the reranker). Quiz generation ~3–10 s.
+- Bug found and fixed: the LLM sometimes cited a *slide number* where a *block tag*
+  was expected (both are small integers), so a question about slide 11 cited block
+  [S11] (slide 17). Prompts now say tags are not slide numbers, and
+  `qa.rescue_citations` remaps such citations to the block from that slide when it
+  clearly supports the text, recording a warning.
+- Bug found and fixed: LibreOffice installed as a macOS app bundle was not found
+  (`soffice` not on PATH); `ingest.find_libreoffice` now checks known locations and
+  `SOFFICE_PATH`.
+- Course files live in `course_materials/` inside the repo on this machine
+  (gitignored); the live tests look there and in `../course_materials`.
 
 ## Course files
 
