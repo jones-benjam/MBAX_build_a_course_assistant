@@ -10,6 +10,7 @@ __pycache__/
 data/uploads/
 data/index/
 data/pages/
+data/quizzes/
 data/*.db
 data/*.json
 !data/results/
