@@ -244,7 +244,7 @@ MOCK_SERVICES=0 python scripts/evaluate.py --materials course_materials
 | Syllabus | What is the late policy for assignments and quizzes? | Syllabus p.2 to 3 |
 | Slide text | What is quantization, and roughly how large is Qwen3-Coder-30B-A3B-Instruct at 16, 8 and 4 bits? | Week 2 slide 15 |
 | Slide text | What is ChatML and which special tokens does it use to mark messages? | Week 3 slide 8 |
-| Slide text | Why would you create a branch in a repository, and what is the default branch usually called? | Week 4 slide 25 |
+| Slide text | According to the Week 4 slides, why would you create a branch in a repository, and what is the default branch usually called? | Week 4 slide 25 |
 | Slide text | In a hybrid RAG pipeline, what does the reranking step do? | Week 5 slide 18 |
 | Visual | Find the meme about Vibe Coding on Prod in the Week 2 slides and explain what its image and text show. | Week 2 slide 33 (title only; the content is in the image) |
 | Visual | What does the chart on the "Vibe Coding" slide in Week 2 show, and what happened around 2025? | Week 2 slide 29 (a Google Trends chart, no body text) |
@@ -265,6 +265,7 @@ app says the information is missing and cites nothing. We also read every answer
 | Mean rank of the expected page | 1.0 | 1.67 |
 | Mean retrieval time | 3.9 s | 0.4 s |
 | Mean time per answer, end to end | 5.1 s | 1.9 s |
+| Median time per answer, end to end | 4.2 s | 1.7 s |
 | Unanswerable question handled correctly | yes | yes |
 
 ### Interpretation
@@ -281,11 +282,13 @@ app says the information is missing and cites nothing. We also read every answer
 - **The cost is about 3 seconds per question,** because each candidate's slide
   image is sent to the multimodal reranker.
 - **Decision: we keep the reranker on by default** and leave the toggle in the UI.
-  The assignment's core requirement is that the slide shown next to the answer is
-  the right one and supports it. The reranker made the top evidence the expected
-  slide every time, which matters most for visual questions, where the LLM cannot
-  compensate with text. Three seconds is acceptable for a study tool, and users who
-  want quick text lookups can switch it off.
+  The cited (and therefore displayed) slide was correct for all nine answerable
+  questions in both modes, so the reranker is not what makes the displayed slide
+  right. What it adds is precision: the expected slide was always the top evidence,
+  and answers carried fewer extra citations, so the first image shown is the right
+  one. That matters most for visual questions, where the LLM cannot compensate with
+  text. A few extra seconds is acceptable for a study tool, and users who want quick
+  text lookups can switch it off.
 
 ### Failure investigated: special tokens disappear from answers
 

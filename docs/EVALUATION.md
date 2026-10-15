@@ -20,7 +20,7 @@ MOCK_SERVICES=0 python scripts/evaluate.py --materials course_materials
 | syl-late-policy | syllabus | What is the late policy for assignments and quizzes? | Syllabus p.2–3 |
 | w2-quantization | slide text | What is quantization, and roughly how large is Qwen3-Coder-30B-A3B-Instruct at 16, 8 and 4 bits? | Week 2 slide 15 |
 | w3-chatml | slide text | What is ChatML and which special tokens does it use to mark messages? | Week 3 slide 8 |
-| w4-branching | slide text | Why would you create a branch in a repository, and what is the default branch usually called? | Week 4 slide 25 |
+| w4-branching | slide text | According to the Week 4 slides, why would you create a branch in a repository, and what is the default branch usually called? | Week 4 slide 25 |
 | w5-reranking | slide text | In a hybrid RAG pipeline, what does the reranking step do? | Week 5 slide 18 |
 | w2-meme-visual | **visual** | Find the meme about Vibe Coding on Prod in the Week 2 slides and explain what its image and text show. | Week 2 slide 33 (title only; content is in the image) |
 | w2-trends-visual | **visual** | What does the chart on the 'Vibe Coding' slide in Week 2 show, and what happened around 2025? | Week 2 slide 29 (no body text; a Google Trends chart) |
@@ -43,6 +43,7 @@ check. We read every answer as well; the two judgements agree except where noted
 | Mean rank of the expected page in retrieval | **1.0** | 1.67 |
 | Mean retrieval latency | 3.9 s | **0.4 s** |
 | Mean end-to-end latency per answer | 5.1 s | **1.9 s** |
+| Median end-to-end latency per answer | 4.2 s | **1.7 s** |
 | Unanswerable question handled | yes | yes |
 
 Per question (rank = position of the expected page among the evidence given to the LLM):
@@ -72,23 +73,29 @@ slide text.
   but sat at rank 2–3 for four questions, including both visual ones (the meme slide
   dropped to rank 3). With the reranker the LLM is handed the right slide first and
   usually cites only that slide; without it the LLM sees more neighbours and the
-  answers cite more (sometimes tangential) pages, e.g. the grading answer without
-  reranking cited six pages including the course schedule.
+  answers cite more pages, e.g. the grading answer without reranking had six
+  citations spread over three syllabus pages (p.2, p.3 and p.7) instead of one.
 - **Answer correctness** was effectively the same (8 vs 9 of 10). The one
   difference is `syl-late-policy`: with reranking the answer omitted that the lowest
   assignment/quiz score is dropped; without it the answer included that detail
   because the extra neighbouring chunk was in the evidence. This is a wording
   difference of the LLM, not a retrieval failure; the expected page was rank 1 both
   times.
-- **Latency:** the reranker costs about 3 s per question (3.9 s vs 0.4 s retrieval),
+- **Latency:** the reranker costs about 3.5 s per question (3.9 s vs 0.4 s retrieval),
   because every candidate's slide image is sent to the multimodal reranker. End to
-  end that is 5.1 s vs 1.9 s per answer.
-- **Decision: keep the reranker ON by default** and keep the toggle in the UI. The
-  assignment's core requirement is that the displayed slide is the right one and
-  supports the answer; the reranker makes the top evidence (and therefore the
-  displayed image and first citation) the expected slide in every case, which matters
-  most for visual questions where the LLM cannot compensate with text. The 3 s cost is
-  acceptable for a study tool; users who want fast text-only lookups can switch it off.
+  end that is 5.1 s vs 1.9 s per answer on average; the ON mean is pulled up by one
+  14.8 s outlier (`w4-branching`), so the medians (4.2 s vs 1.7 s) are the fairer
+  comparison. Note that `scripts/evaluate.py` retrieves twice per question (once to
+  measure the expected page's rank, once inside the answer), so the reranker runs
+  twice per question during evaluation; only the second run is in the end-to-end time.
+- **Decision: keep the reranker ON by default** and keep the toggle in the UI. In
+  both modes the cited (and therefore displayed) slide was the expected one for all
+  nine answerable questions, and reranker OFF was as accurate and about 2.5 times
+  faster. What the reranker adds is precision: the expected slide is always the top
+  evidence and answers carry fewer extra citations, so the first image shown is the
+  right one. That matters most for visual questions, where the LLM cannot compensate
+  with text. The few extra seconds are acceptable for a study tool; users who want
+  fast text-only lookups can switch it off.
 
 ## Limitation investigated: special tokens disappear from answers
 
