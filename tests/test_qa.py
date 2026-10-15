@@ -142,3 +142,27 @@ def test_doc_filter_and_reranker_toggle_pass_through(assistant):
     week2 = next(d for d in assistant.library.list_documents() if d.name == "week2.pdf")
     ans = assistant.ask("vibe coding meme", doc_ids={week2.doc_id}, use_reranker=False)
     assert ans.reranked is False and all(s.doc_id == week2.doc_id for s in ans.sources)
+
+
+def test_slide_number_cited_as_block_tag_is_rescued(assistant):
+    """Real-service finding: the model reasons 'slide N says...' and cites N, but N is a page
+    number, not a block tag. The citation is moved to the block from that page when that
+    block clearly supports the answer."""
+    from course_assistant.index import Evidence
+    from course_assistant.qa import rescue_citations
+    from course_assistant.ingest import Chunk
+
+    def chunk(page, text):
+        return Chunk(doc_id="d", doc_name="week2.pptx", page_number=page, chunk_index=0,
+                     chunk_id=f"d:{page}:0", text=text, image_path=None)
+    evidence = [
+        Evidence(chunk(17, "Model types: instruct and mixture of experts models"), 0, 0),
+        Evidence(chunk(11, "The KV cache avoids reprocessing prior tokens during decoding, reducing TTFT"), 0, 0),
+        Evidence(chunk(13, "Speculative decoding guesses candidate tokens ahead"), 0, 0),
+    ]
+    answer = "Slide 11 explains the KV cache avoids reprocessing prior tokens, reducing TTFT."
+    ids, notes = rescue_citations(answer, [11], evidence)
+    assert ids == [2] and len(notes) == 1 and "[S11]" in notes[0] and "[S2]" in notes[0]
+    # A correct tag is left alone, and a page-number collision with a well-supported block is kept.
+    assert rescue_citations(answer, [2], evidence) == ([2], [])
+    assert rescue_citations("instruct and mixture of experts", [1], evidence) == ([1], [])

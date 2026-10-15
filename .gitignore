@@ -16,3 +16,7 @@ data/*.json
 # os / editor
 .DS_Store
 .vscode/
+
+# local copies of Canvas course files and the class endpoint note (copyright / secrets)
+course_materials/
+.claude/

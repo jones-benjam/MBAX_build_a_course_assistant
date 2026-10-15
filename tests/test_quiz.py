@@ -149,3 +149,33 @@ def test_empty_library_gives_clear_error(settings):
     a = Assistant(settings)
     with pytest.raises(QuizError, match="Add documents"):
         a.generate_quiz(n_questions=2)
+
+
+def test_quiz_rescues_slide_number_citations(assistant):
+    """The model cites a page number instead of a block tag; the question ends up citing the
+    page that actually supports it, with a warning explaining the correction."""
+    from course_assistant.qa import rescue_citations
+    from course_assistant.index import Evidence
+    from course_assistant.ingest import Chunk
+
+    def chunk(page, text):
+        return Chunk(doc_id="d", doc_name="w.pptx", page_number=page, chunk_index=0,
+                     chunk_id=f"d:{page}:0", text=text, image_path=None)
+    evidence = [Evidence(chunk(3, "Office hours Tuesday"), 0, 0),
+                Evidence(chunk(1, "Exams are 40% and team projects 60% of the grade"), 0, 0)]
+    ids, notes = rescue_citations("Exams carry 40% of the grade per the grading section", [1], evidence)
+    assert ids == [2] and notes
+
+    # End to end through the generator: a payload citing page 1 of the syllabus by its page number.
+    import json as _json
+    syllabus = next(d for d in assistant.library.list_documents() if d.name == "syllabus.pdf")
+    assistant.quizzes.llm = ScriptedLLM([_json.dumps({"questions": [{
+        "question": "What share of the grade do exams carry?",
+        "options": ["40%", "60%", "45%", "10%"], "answer_index": 0,
+        "explanation": "The grading section states exams are 40% and team projects 60%.",
+        "sources": [1],  # page-number style citation (page 1); block 1 may be a different page
+    }]})])
+    quiz = assistant.generate_quiz(doc_ids={syllabus.doc_id}, n_questions=1)
+    q = quiz.questions[0]
+    assert q.sources and q.sources[0].page_number == 1 and "40% exams" in q.sources[0].excerpt
+    assert any("looked like a page/slide number" in w for w in quiz.warnings) or q.verified

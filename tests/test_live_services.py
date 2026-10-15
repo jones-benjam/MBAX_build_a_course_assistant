@@ -5,7 +5,7 @@ normal `./run_tests.sh` stays offline. Run with:
 
     LIVE_SERVICES=1 MOCK_SERVICES=0 .venv/bin/python -m pytest tests/test_live_services.py -v -s
 
-Set COURSE_MATERIALS_DIR (default ../course_materials) to run the end-to-end checks
+Set COURSE_MATERIALS_DIR (default: ./course_materials or ../course_materials) to run the end-to-end checks
 on the syllabus and the Week 2 deck (the "Vibe Coding on Prod" meme is slide 33).
 """
 from __future__ import annotations
@@ -18,7 +18,18 @@ import pytest
 LIVE = os.environ.get("LIVE_SERVICES") == "1" and Path(".env").exists()
 pytestmark = pytest.mark.skipif(not LIVE, reason="set LIVE_SERVICES=1 with a real .env to run")
 
-MATERIALS = Path(os.environ.get("COURSE_MATERIALS_DIR", "../course_materials"))
+def _materials_dir() -> Path:
+    """COURSE_MATERIALS_DIR, else the first of ./course_materials or ../course_materials that exists."""
+    env = os.environ.get("COURSE_MATERIALS_DIR")
+    if env:
+        return Path(env)
+    for cand in (Path("course_materials"), Path("../course_materials")):
+        if cand.is_dir():
+            return cand
+    return Path("../course_materials")
+
+
+MATERIALS = _materials_dir()
 
 
 def _settings(tmp_path):
@@ -108,7 +119,7 @@ def assistant(tmp_path_factory):
     s = _settings(tmp_path_factory.mktemp("live"))
     a = Assistant(s)
     a.add_document(_find("syllabus"))
-    a.add_document(_find("week 2") if any("week 2" in p.name.lower() for p in MATERIALS.iterdir()) else _find("week2"))
+    a.add_document(_find("week 2"))
     return a
 
 

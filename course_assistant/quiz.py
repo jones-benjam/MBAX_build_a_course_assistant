@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .index import Evidence, HybridRetriever
 from .ingest import Chunk
-from .qa import Source, _excerpt, _resolve_sources, support_score
+from .qa import Source, _excerpt, _resolve_sources, rescue_citations, support_score
 from .services import ChatMessage, LLMClient, ServiceUnavailable
 
 MAX_EVIDENCE = 12
@@ -36,7 +36,7 @@ Rules:
 - Every question must be answerable from the evidence; do not use outside knowledge.
 - Exactly 4 options per question, one clearly correct, the others plausible but wrong according to the evidence.
 - Give a short explanation of why the correct option is right, grounded in the evidence.
-- Cite the evidence block numbers each question is based on. Never invent sources.
+- Cite the evidence blocks each question is based on by their TAG numbers (the n in [S<n>]). Tag numbers are NOT page or slide numbers: a block tagged [S2] may come from slide 17; cite 2, not 17. Never invent sources.
 - Vary question types (definitions, comparisons, numbers/dates, interpretation of diagrams or charts shown in images).
 Respond with a single JSON object and nothing else:
 {"questions": [{"question": "...", "options": ["...", "...", "...", "..."], "answer_index": 0, "explanation": "...", "sources": [1]}]}"""
@@ -208,7 +208,7 @@ def build_quiz_messages(evidence: list[Evidence], n_questions: int, topic: str |
     blocks, images = [], []
     for i, ev in enumerate(evidence, start=1):
         c = ev.chunk
-        header = f"[S{i}] {c.doc_name} — page/slide {c.page_number}"
+        header = f"[S{i}] (tag {i}) {c.doc_name} — page/slide {c.page_number}"
         if ev.image_path and len(images) < MAX_IMAGES and ev.image_path.exists():
             images.append(ev.image_path)
             header += f" (slide image #{len(images)} attached)"
@@ -264,18 +264,23 @@ class QuizGenerator:
             if not (0 <= qp.answer_index < len(qp.options)):
                 warnings.append(f"Dropped a question with an out-of-range answer index: {qp.question[:60]}…")
                 continue
-            sources, dropped = _resolve_sources(qp.sources, evidence)
+            correct = qp.options[qp.answer_index]
+            ids, notes = rescue_citations(f"{qp.question} {correct} {qp.explanation}", qp.sources, evidence)
+            warnings.extend(notes)
+            sources, dropped = _resolve_sources(ids, evidence)
             if dropped:
                 warnings.append(f"Removed non-existent source ids {dropped} from a question.")
             if not sources:
                 warnings.append(f"Dropped a question with no valid sources: {qp.question[:60]}…")
                 continue
             # Shuffle options once; the key is fixed from here on.
-            correct = qp.options[qp.answer_index]
             options = list(qp.options)
             rnd.shuffle(options)
             answer_index = options.index(correct)
-            verified = support_score(f"{qp.question} {correct} {qp.explanation}", sources) >= 0.2
+            # Same rule as answers: text overlap, or any overlap when the source is a slide image
+            # (questions about charts/memes legitimately use words that are only in the picture).
+            score = support_score(f"{qp.question} {correct} {qp.explanation}", sources)
+            verified = score >= 0.2 or (any(src.image_path is not None for src in sources) and score > 0)
             questions.append(QuizQuestion(
                 number=len(questions) + 1, question=qp.question.strip(), options=options, answer_index=answer_index,
                 explanation=qp.explanation.strip(), sources=sources, verified=verified,

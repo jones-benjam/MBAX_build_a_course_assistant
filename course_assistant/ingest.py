@@ -14,6 +14,7 @@ Supported formats:
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import tempfile
@@ -99,13 +100,37 @@ def describe_supported_formats() -> str:
 # Conversion
 # ----------------------------------------------------------------------------
 
+# Where LibreOffice lives when it is installed but not on PATH (macOS app bundle,
+# Linux packages, Windows default). PATH is checked first.
+_SOFFICE_CANDIDATES = (
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/usr/lib/libreoffice/program/soffice",
+    "/opt/libreoffice/program/soffice",
+    r"C:\Program Files\LibreOffice\program\soffice.exe",
+)
+
+
+def find_libreoffice() -> str | None:
+    """Return the soffice executable, honouring $SOFFICE_PATH, PATH, then known locations."""
+    override = os.environ.get("SOFFICE_PATH")
+    if override and Path(override).is_file():
+        return override
+    exe = shutil.which("soffice") or shutil.which("libreoffice")
+    if exe:
+        return exe
+    for cand in _SOFFICE_CANDIDATES:
+        if Path(cand).is_file():
+            return cand
+    return None
+
+
 def libreoffice_available() -> bool:
-    return shutil.which("soffice") is not None or shutil.which("libreoffice") is not None
+    return find_libreoffice() is not None
 
 
 def convert_to_pdf(src: Path, out_dir: Path, timeout: int = 180) -> Path:
     """Convert an Office document to PDF with LibreOffice headless."""
-    exe = shutil.which("soffice") or shutil.which("libreoffice")
+    exe = find_libreoffice()
     if not exe:
         raise ConversionError("LibreOffice (soffice) is not installed; export the file to PDF manually.")
     out_dir.mkdir(parents=True, exist_ok=True)
