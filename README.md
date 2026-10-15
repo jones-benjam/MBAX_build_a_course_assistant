@@ -90,6 +90,10 @@ Copy the template and fill in the values from the class endpoint list:
 cp .env.example .env
 ```
 
+> **Important:** `.env.example` starts with `MOCK_SERVICES=1` (offline stand-ins).
+> After filling in the URLs and keys, change it to `MOCK_SERVICES=0`, or the app
+> will run on the stand-ins and its answers will not be meaningful.
+
 `.env` is in `.gitignore` and must never be committed. The template contains only
 dummy values, for example:
 
@@ -189,6 +193,14 @@ slide 37, Week 4 slide 5, Week 5 slide 8) is blank or black.
 ```bash
 ./run_tests.sh                                         # offline, mock services, no key
 python -m pyflakes course_assistant tests scripts app.py
+```
+
+`pyflakes` (the linter) is included in `requirements.txt`. `run_tests.sh` is a bash
+script; on Windows run the same suite from the activated virtual environment with:
+
+```bat
+set MOCK_SERVICES=1
+python -m pytest -q
 ```
 
 The offline suite has 73 tests: unit tests for parsing, chunking, indexing, fusion,
@@ -300,6 +312,11 @@ We documented this instead of adding a special case.
   visual index cannot use what the animation shows.
 - **Ingestion speed:** each page image is embedded with a separate request, so a
   42-slide deck takes about 40 seconds to add.
+- **Quiz text can leak internal evidence tags.** Generated questions and
+  explanations sometimes say things like "Slide 11 (Tag 5)", and an explanation can
+  name the wrong slide (in `docs/screenshots/quiz-light.png`, Q1's explanation says
+  slide 5 while its cited source is Week 5 slide 11). The cited source shown under
+  each question is the correct one; the slide number in the prose may not be.
 - **Quiz topic filter:** dense search always returns neighbours, so a topic that is
   not in the materials still produces a quiz from the closest content instead of
   an error.
