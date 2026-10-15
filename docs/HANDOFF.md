@@ -21,7 +21,7 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 4 Grounded answers (JSON `{answer, sources, missing_information}`, support check) | done, 12 tests | `step-4-answering` → PR #4 |
 | 5 Quizzes (fixed key, hidden solutions, grading, sources) | done, 8 tests | `step-5-quiz` → PR #5 |
 | 6 Gradio UI (Materials / Ask / Quiz, light+dark, screenshot script) | done, 5 tests | `step-6-ui` → PR #6 |
-| 7 Thorough testing incl. **real services** | **next** | |
+| 7 Thorough testing incl. **real services** | **in progress**: endpoint formats verified against `/openapi.json` + model cards (`docs/ENDPOINTS.md`), HTTP clients fixed, offline client tests + opt-in live tests added; live run on the real key/files still pending | `step-7-testing` |
 | 8 Evaluation (5–10 questions, rerank on vs off) | todo | |
 | 9 README, SVG architecture diagram, real screenshots | todo | |
 | 10 Issues, reviews, fresh-clone check, submit | todo | |
@@ -30,7 +30,7 @@ PRs are **stacked**: each PR's base is the previous step's branch. Merge in orde
 retarget the next PR to `main` after each merge (or merge the whole stack from
 `step-6-ui` once reviewed). `step-6-ui` contains everything.
 
-`./run_tests.sh` → 49 tests pass offline (`MOCK_SERVICES=1`), `pyflakes` clean.
+`./run_tests.sh` → 67 tests pass offline (`MOCK_SERVICES=1`; 2 skip without LibreOffice, 10 live tests skip without `LIVE_SERVICES=1`), `pyflakes` clean.
 
 ## Everything that has only been checked with mock services
 
@@ -40,7 +40,11 @@ retarget the next PR to `main` after each merge (or merge the whole stack from
 - The exact request/response format of each class endpoint (see below).
 - `docs/screenshots/*` were captured on mock services and must be re-captured.
 
-## Class endpoints: what to verify first (Step 7)
+## Class endpoints: verified 2026-10-15 — see `docs/ENDPOINTS.md`
+
+The table below is the pre-verification guess, kept for history. The verified formats are in `docs/ENDPOINTS.md`.
+
+### Original notes (superseded)
 
 `course_assistant/services/http_clients.py` assumes OpenAI-compatible vLLM routes.
 Check each server's `/docs` or `/openapi.json` and adjust `_payload` / parsing:
