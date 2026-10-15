@@ -41,8 +41,10 @@ answers with cited slide images). Read this file first, then:
   tests, logs, error messages, screenshots, commit messages, or issue comments.
 - Course files from Canvas stay outside git. `course_materials/` is gitignored for
   a local copy; the class endpoint note belongs there too, never in the repo.
-- Before pushing, scan your diff for anything key-shaped. The real key is a short
-  number; a `git grep` for `API_KEY=` must only find dummy values.
+- Before pushing, scan your diff: a `git grep` for `API_KEY=` must only find the
+  dummy values in `.env.example`.
+- Some course slides print the class endpoint key (Week 4, slides 12 and 13). Never
+  put those slides in screenshots, saved results, test fixtures or issue comments.
 
 ## Layout
 

@@ -55,6 +55,8 @@ an agent such as Hermes or Claude Code. If you use an agent, point it at
 
 - Never commit `.env`, the API key, the class endpoint note, or the Canvas course
   files. `.gitignore` already excludes `.env` and `course_materials/`.
+- Week 4 slides 12 and 13 show the class endpoint key. Do not screenshot them or
+  paste answers that quote them anywhere in the repo or on GitHub.
 - Keep tests and `pyflakes` green before pushing.
 - If you find a bug, open an issue with steps to reproduce and what you expected,
   even if you plan to fix it yourself.
