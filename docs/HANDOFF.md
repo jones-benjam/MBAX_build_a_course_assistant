@@ -22,7 +22,7 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 5 Quizzes (fixed key, hidden solutions, grading, sources) | done, 8 tests | `step-5-quiz` → PR #5 |
 | 6 Gradio UI (Materials / Ask / Quiz, light+dark, screenshot script) | done, 5 tests | `step-6-ui` → PR #6 |
 | 7 Thorough testing incl. **real services** | done: endpoint formats verified (`docs/ENDPOINTS.md`), HTTP clients fixed, 10 live tests pass on the real endpoints + course files, UI walked through on real data; fixes: LibreOffice app-bundle lookup, block-tag vs slide-number citation rescue | `step-7-testing` → PR #7 |
-| 8 Evaluation (5–10 questions, rerank on vs off) | todo | |
+| 8 Evaluation (5–10 questions, rerank on vs off) | done: `scripts/evaluate.py`, 10 questions, results in `data/results/`, write-up `docs/EVALUATION.md` | `step-8-evaluation` → PR #8 |
 | 9 README, SVG architecture diagram, real screenshots | todo | |
 | 10 Issues, reviews, fresh-clone check, submit | todo | |
 

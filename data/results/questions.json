@@ -1,0 +1,234 @@
+[
+  {
+    "id": "syl-grading",
+    "type": "syllabus",
+    "question": "How is the final grade calculated in this course?",
+    "expected_doc": "Syllabus",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      [
+        "20%"
+      ],
+      [
+        "15%"
+      ],
+      [
+        "45%"
+      ],
+      [
+        "5%"
+      ]
+    ],
+    "notes": "Assignments 20%, Quizzes 15%, Final Project 45%, Final Exam 15%, Attendance and Participation 5%."
+  },
+  {
+    "id": "syl-office-hours",
+    "type": "syllabus",
+    "question": "When are the professor's office hours and how are they held?",
+    "expected_doc": "Syllabus",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      [
+        "tuesday"
+      ],
+      [
+        "friday"
+      ],
+      [
+        "11"
+      ],
+      [
+        "zoom"
+      ]
+    ],
+    "notes": "Tuesdays and Fridays 11am to 12pm via Zoom, and by appointment."
+  },
+  {
+    "id": "syl-late-policy",
+    "type": "syllabus",
+    "question": "What is the late policy for assignments and quizzes?",
+    "expected_doc": "Syllabus",
+    "expected_pages": [
+      2,
+      3
+    ],
+    "expected_keywords": [
+      [
+        "10%"
+      ],
+      [
+        "five days",
+        "5 days"
+      ],
+      [
+        "not accept",
+        "no late",
+        "will not",
+        "not be accepted"
+      ],
+      [
+        "lowest",
+        "dropped"
+      ]
+    ],
+    "notes": "10% per calendar day late, max five days, lowest assignment dropped; late quizzes not accepted, lowest quiz dropped."
+  },
+  {
+    "id": "w2-quantization",
+    "type": "slide-text",
+    "question": "What is quantization, and roughly how large is Qwen3-Coder-30B-A3B-Instruct at 16, 8 and 4 bits?",
+    "expected_doc": "Week 2",
+    "expected_pages": [
+      15
+    ],
+    "expected_keywords": [
+      [
+        "61"
+      ],
+      [
+        "31"
+      ],
+      [
+        "17"
+      ],
+      [
+        "round",
+        "scal",
+        "smaller",
+        "precision"
+      ]
+    ],
+    "notes": "Scaling and rounding parameters to make models smaller/faster; ~61GB, ~31GB, ~17GB."
+  },
+  {
+    "id": "w3-chatml",
+    "type": "slide-text",
+    "question": "What is ChatML and which special tokens does it use to mark messages?",
+    "expected_doc": "Week 3",
+    "expected_pages": [
+      8
+    ],
+    "expected_keywords": [
+      [
+        "im_start"
+      ],
+      [
+        "im_end"
+      ],
+      [
+        "system",
+        "user",
+        "assistant"
+      ]
+    ],
+    "notes": "Chat Markup Language; <|im_start|>role ... <|im_end|> blocks for system/user/assistant."
+  },
+  {
+    "id": "w4-branching",
+    "type": "slide-text",
+    "question": "According to the Week 4 slides, why would you create a branch in a repository, and what is the default branch usually called?",
+    "expected_doc": "Week 4",
+    "expected_pages": [
+      25
+    ],
+    "expected_keywords": [
+      [
+        "main"
+      ],
+      [
+        "feature",
+        "bug",
+        "experiment"
+      ],
+      [
+        "separate lines of work",
+        "separate"
+      ]
+    ],
+    "notes": "Separate lines of work (feature, bug fix, experiment); default branch is main."
+  },
+  {
+    "id": "w5-reranking",
+    "type": "slide-text",
+    "question": "In a hybrid RAG pipeline, what does the reranking step do?",
+    "expected_doc": "Week 5",
+    "expected_pages": [
+      18
+    ],
+    "expected_keywords": [
+      [
+        "candidate"
+      ],
+      [
+        "question",
+        "query"
+      ],
+      [
+        "prioriti",
+        "rank",
+        "order"
+      ]
+    ],
+    "notes": "Compares retrieved candidates to the original question and prioritises which chunks go to the LLM."
+  },
+  {
+    "id": "w2-meme-visual",
+    "type": "visual",
+    "question": "Find the meme about Vibe Coding on Prod in the Week 2 slides and explain what its image and text show.",
+    "expected_doc": "Week 2",
+    "expected_pages": [
+      33
+    ],
+    "expected_keywords": [
+      [
+        "one does not simply"
+      ],
+      [
+        "boromir",
+        "lord of the rings",
+        "mordor"
+      ],
+      [
+        "production",
+        "prod"
+      ]
+    ],
+    "notes": "Slide 33: 'One Does Not Simply' Boromir meme reading 'One does not simply vibe code a production-grade enterprise app'. The slide's only text is the title, so the content must come from the image."
+  },
+  {
+    "id": "w2-trends-visual",
+    "type": "visual",
+    "question": "What does the chart on the 'Vibe Coding' slide in Week 2 show, and what happened around 2025?",
+    "expected_doc": "Week 2",
+    "expected_pages": [
+      29
+    ],
+    "expected_keywords": [
+      [
+        "google trends",
+        "search",
+        "trend"
+      ],
+      [
+        "learn to code"
+      ],
+      [
+        "2025"
+      ]
+    ],
+    "notes": "Slide 29 is a Google Trends chart: searches for 'vibe coding' overtook 'learn to code' in 2025. The slide has no body text."
+  },
+  {
+    "id": "unanswerable",
+    "type": "unanswerable",
+    "question": "What was the class average score on Assignment 1?",
+    "expected_doc": null,
+    "expected_pages": [],
+    "expected_keywords": [],
+    "notes": "Not in any material; the assistant must say the information is missing and cite nothing."
+  }
+]
