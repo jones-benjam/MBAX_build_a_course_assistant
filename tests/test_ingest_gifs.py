@@ -7,7 +7,6 @@ frame over the rendered image so the page image and visual index show content.
 The frame-selection and patching helpers are tested without LibreOffice; the
 full PPTX path test is skipped when LibreOffice is not installed.
 """
-from io import BytesIO
 from pathlib import Path
 
 import numpy as np

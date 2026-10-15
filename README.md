@@ -199,7 +199,6 @@ render correctly are left untouched.
 python -m pyflakes course_assistant tests scripts app.py
 ```
 
-The offline suite has 78 tests: unit tests for parsing, chunking, indexing, fusion,
 `pyflakes` (the linter) is included in `requirements.txt`. `run_tests.sh` is a bash
 script; on Windows run the same suite from the activated virtual environment with:
 
@@ -208,11 +207,12 @@ set MOCK_SERVICES=1
 python -m pytest -q
 ```
 
-The offline suite has 73 tests: unit tests for parsing, chunking, indexing, fusion,
-JSON validation, source support, quiz grading and the HTTP request formats, and
-end-to-end tests through the app for adding, duplicate uploads, removal, answering,
-missing information, quizzes, and services being unavailable. Three PowerPoint tests
-are skipped if LibreOffice is not installed.
+The offline suite has 84 tests: unit tests for parsing, chunking, indexing, fusion,
+JSON validation, source support, quiz grading, animated-GIF handling, key redaction
+in error messages and the HTTP request formats, and end-to-end tests through the app
+for adding, duplicate uploads, removal, answering, missing information, quizzes, and
+services being unavailable. Three PowerPoint tests are skipped if LibreOffice is not
+installed, so 81 run on a machine without it.
 
 With a filled `.env`, ten more tests check the real services and the real course
 files: each endpoint, duplicate upload, a syllabus answer, the meme found through

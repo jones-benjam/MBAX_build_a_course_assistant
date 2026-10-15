@@ -55,18 +55,34 @@ def _api_base(base_url: str) -> str:
     return url if url.endswith("/v1") else url + "/v1"
 
 
-def _error_detail(response: httpx.Response) -> str:
-    """Short, key-free description of an error body (vLLM returns JSON with a message)."""
+_DETAIL_LIMIT = 200
+
+
+def _redact(text: str, secret: str) -> str:
+    """Replace the configured key wherever it appears in server-provided text."""
+    return text.replace(secret, "***") if secret else text
+
+
+def _error_detail(response: httpx.Response, secret: str = "") -> str:
+    """Short, key-free description of an error body (vLLM returns JSON with a message).
+
+    The server's text is untrusted and could echo the request's credentials, so the
+    configured key is redacted from the full text *before* truncation; a key that
+    straddles the cut-off point can therefore never leave a fragment behind.
+    """
     try:
         body = response.json()
         if isinstance(body, dict):
             err = body.get("error", body)
             if isinstance(err, dict):
-                return str(err.get("message") or err.get("detail") or err)[:200]
-            return str(body.get("detail") or err)[:200]
-        return str(body)[:200]
+                text = str(err.get("message") or err.get("detail") or err)
+            else:
+                text = str(body.get("detail") or err)
+        else:
+            text = str(body)
     except ValueError:
-        return response.text[:200]
+        text = response.text
+    return _redact(text, secret)[:_DETAIL_LIMIT]
 
 
 class _Http:
@@ -88,7 +104,7 @@ class _Http:
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as e:
-            detail = _error_detail(e.response)
+            detail = _error_detail(e.response, self.cfg.api_key)
             raise ServiceUnavailable(f"{name} returned HTTP {e.response.status_code}: {detail}") from None
         except (httpx.HTTPError, ValueError) as e:
             raise ServiceUnavailable(f"{name} unreachable ({type(e).__name__})") from None
