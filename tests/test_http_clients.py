@@ -186,6 +186,34 @@ def test_failures_become_service_unavailable_without_key(response):
         assert str(response[0]) in msg
 
 
+@pytest.mark.parametrize("as_json", [True, False])
+@pytest.mark.parametrize("padding", [0, 190])
+def test_echoed_api_key_is_redacted_before_error_truncation(as_json, padding):
+    secret = "synthetic-credential-for-redaction-test"
+    detail = "x" * padding + secret + " authentication rejected"
+
+    def handler(request):
+        if as_json:
+            return httpx.Response(401, json={"error": {"message": detail}})
+        return httpx.Response(401, text=detail)
+
+    client = HttpTextEmbed(
+        ServiceConfig("https://example.invalid", secret, "test-model"),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        with pytest.raises(ServiceUnavailable) as error:
+            client.embed(["test"])
+        message = str(error.value)
+        assert secret not in message
+        assert "synthetic-" not in message  # catch a partially truncated key too
+        assert "[REDACTED]" in message
+        assert "HTTP 401" in message
+        assert len(message.split(": ", 1)[1]) <= 200
+    finally:
+        client._client.close()
+
+
 def test_http_error_message_includes_server_detail_for_debugging():
     rec = Recorder([(400, {"error": {"message": "Unsupported content part: image", "type": "BadRequest"}})])
     with pytest.raises(ServiceUnavailable, match="Unsupported content part"):
