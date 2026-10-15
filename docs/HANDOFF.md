@@ -23,7 +23,7 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 6 Gradio UI (Materials / Ask / Quiz, light+dark, screenshot script) | done, 5 tests | `step-6-ui` → PR #6 |
 | 7 Thorough testing incl. **real services** | done: endpoint formats verified (`docs/ENDPOINTS.md`), HTTP clients fixed, 10 live tests pass on the real endpoints + course files, UI walked through on real data; fixes: LibreOffice app-bundle lookup, block-tag vs slide-number citation rescue | `step-7-testing` → PR #7 |
 | 8 Evaluation (5–10 questions, rerank on vs off) | done: `scripts/evaluate.py`, 10 questions, results in `data/results/`, write-up `docs/EVALUATION.md` | `step-8-evaluation` → PR #8 |
-| 9 README, SVG architecture diagram, real screenshots | todo | |
+| 9 README, SVG architecture diagram, real screenshots | done in PRs: #18 AGENTS.md/CONTRIBUTING, #19 `docs/architecture.svg`, #20 real screenshots, #22 README | `step-9-*` |
 | 10 Issues, reviews, fresh-clone check, submit | todo | |
 
 PRs are **stacked**: each PR's base is the previous step's branch. Merge in order and
@@ -80,6 +80,14 @@ Keys are sent as `Authorization: Bearer <key>`.
   `SOFFICE_PATH`.
 - Course files live in `course_materials/` inside the repo on this machine
   (gitignored); the live tests look there and in `../course_materials`.
+
+## Step 9 findings (2026-10-15)
+
+- Contact-sheet check of all 122 converted slides: correct except three animated
+  GIFs (Week 2 s37, Week 4 s5, Week 5 s8) that LibreOffice renders as a blank first
+  frame. Follow-up: issue #21.
+- Week 4 slides 12 and 13 print the class endpoint key in their text. Course files
+  are gitignored; never screenshot, quote or save answers from those slides.
 
 ## Course files
 
