@@ -14,15 +14,20 @@ Supported formats:
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 import pymupdf as fitz
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from PIL import Image, ImageSequence, ImageStat
+
+_log = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = (".pdf", ".pptx", ".docx", ".txt", ".md")
 RENDER_DPI = 110
@@ -201,11 +206,115 @@ def _pptx_slide_text(pptx_path: Path) -> dict[int, str]:
     return out
 
 
+def _emu_to_px(emu: int) -> int:
+    """Convert an EMU (English Metric Unit, 914400 per inch) to pixels at
+    RENDER_DPI. Inside the converted PDF a slide keeps its EMU geometry, so the
+    rendered page image uses the same scale."""
+    return int(round(emu * RENDER_DPI / 914400.0))
+
+
+def _gif_pictures(pptx_path: Path) -> dict[int, list[dict]]:
+    """Return, per slide number, the picture boxes of GIF images on the slide.
+
+    LibreOffice renders only the first frame of an animated GIF; when that
+    frame is blank the page image has an empty area. We record the picture's
+    position/size (EMU) and raw bytes so `_patch_gif_frames` can later paste a
+    representative frame over it.
+    """
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    out: dict[int, list[dict]] = {}
+    prs = Presentation(str(pptx_path))
+    for i, slide in enumerate(prs.slides, start=1):
+        for shape in slide.shapes:
+            try:
+                if shape.shape_type != MSO_SHAPE_TYPE.PICTURE or shape.image is None:
+                    continue
+                blob = shape.image.blob
+            except Exception:  # non-picture shapes may raise on .image / .blob
+                continue
+            if not blob or not blob.startswith(b"GIF8"):
+                continue
+            out.setdefault(i, []).append({
+                "left": shape.left, "top": shape.top,
+                "width": shape.width, "height": shape.height,
+                "blob": blob,
+            })
+    return out
+
+
+def _best_gif_frame(blob: bytes) -> Image.Image:
+    """Pick the most informative frame of an animated GIF.
+
+    Blank/black first frames (the LibreOffice issue) are skipped by choosing the
+    frame with the highest luminance standard deviation -- a blank frame has
+    near-zero variance, a meaningful frame does not.
+    """
+    gif = Image.open(BytesIO(blob))
+    best, best_metric = None, -1.0
+    for frame in ImageSequence.Iterator(gif):
+        stat = ImageStat.Stat(frame.convert("L"))
+        metric = stat.stddev[0] if stat.stddev else 0.0
+        if metric > best_metric:
+            best_metric = metric
+            best = frame.convert("RGB")
+    return best if best is not None else gif.convert("RGB")
+
+
+def _patch_gif_frames(pages: list["Page"], gifs: dict[int, list[dict]]) -> None:
+    """Paste a representative GIF frame over the rendered (possibly blank) one.
+
+    Runs after the PDF pages are rendered. A slide whose first GIF frame rendered
+    blank gets its display area filled with the most detailed GIF frame, so the
+    page image shown to users and passed to the visual index actually shows the
+    animation's content. Failures are logged and skipped per slide so a problem
+    with one image never breaks ingestion of the whole deck.
+    """
+    for page in pages:
+        pics = gifs.get(page.page_number, [])
+        if not pics or page.image_path is None or not page.image_path.exists():
+            continue
+        try:
+            img = Image.open(page.image_path).convert("RGB")
+        except Exception as exc:  # pragma: no cover - defensive
+            _log.warning("Could not open rendered image for slide %s: %s",
+                         page.page_number, exc)
+            continue
+        width, height = img.size
+        patched = False
+        for pic in pics:
+            try:
+                left = _emu_to_px(pic["left"] or 0)
+                top = _emu_to_px(pic["top"] or 0)
+                box = (
+                    max(0, left),
+                    max(0, top),
+                    min(width, left + max(1, _emu_to_px(pic["width"] or 0))),
+                    min(height, top + max(1, _emu_to_px(pic["height"] or 0))),
+                )
+                if box[2] <= box[0] or box[3] <= box[1]:
+                    continue
+                frame = _best_gif_frame(pic["blob"]).resize(
+                    (box[2] - box[0], box[3] - box[1]))
+                img.paste(frame, box)
+                patched = True
+            except Exception as exc:  # pragma: no cover - defensive
+                _log.warning("Skipping GIF patch on slide %s: %s", page.page_number, exc)
+        if patched:
+            img.save(page.image_path)
+
+
 def parse_pptx(path: Path, doc_id: str, doc_name: str, pages_dir: Path) -> list[Page]:
     slide_text = _pptx_slide_text(path)
+    gif_pics = _gif_pictures(path)
     with tempfile.TemporaryDirectory(prefix="pptx2pdf-") as tmp:
         pdf = convert_to_pdf(path, Path(tmp))
         pages = parse_pdf(pdf, doc_id, doc_name, pages_dir, fallback_text=slide_text)
+    # LibreOffice renders only the (often blank) first GIF frame; paste a
+    # representative frame over it so the page image and visual index show
+    # meaningful content.
+    _patch_gif_frames(pages, gif_pics)
     # Append speaker notes (not rendered in the PDF) to the slide text.
     for p in pages:
         notes = slide_text.get(p.page_number, "")

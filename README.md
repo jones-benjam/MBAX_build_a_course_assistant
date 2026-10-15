@@ -180,9 +180,11 @@ in PowerPoint or Keynote (File, then Export, then PDF) and upload the PDF.
 
 We checked every converted slide of the Week 2 to 5 decks (122 slides) on a contact
 sheet. Layout, text, tables, diagrams and still images render correctly, including
-image-only slides such as the meme on Week 2 slide 33. The exception is animated
-GIFs: LibreOffice draws only their first frame, which on three slides (Week 2
-slide 37, Week 4 slide 5, Week 5 slide 8) is blank or black.
+image-only slides such as the meme on Week 2 slide 33. Animated GIFs are handled
+too: LibreOffice draws only their first frame (which on three slides — Week 2
+slide 37, Week 4 slide 5, Week 5 slide 8 — is blank or black), so the assistant
+pastes the GIF's most informative frame over that area after conversion, keeping
+the page image and the visual index meaningful.
 
 ## Tests
 
@@ -191,10 +193,10 @@ slide 37, Week 4 slide 5, Week 5 slide 8) is blank or black.
 python -m pyflakes course_assistant tests scripts app.py
 ```
 
-The offline suite has 73 tests: unit tests for parsing, chunking, indexing, fusion,
+The offline suite has 78 tests: unit tests for parsing, chunking, indexing, fusion,
 JSON validation, source support, quiz grading and the HTTP request formats, and
 end-to-end tests through the app for adding, duplicate uploads, removal, answering,
-missing information, quizzes, and services being unavailable. Two PowerPoint tests
+missing information, quizzes, and services being unavailable. Three PowerPoint tests
 are skipped if LibreOffice is not installed.
 
 With a filled `.env`, ten more tests check the real services and the real course
@@ -295,9 +297,12 @@ We documented this instead of adding a special case.
   content words appear in the cited excerpts. Answers about images use words that
   appear only in the picture, so for image-backed sources any overlap counts as
   supported. It catches unsupported answers but cannot prove an answer is correct.
-- **Animated GIFs** on slides are rendered as their first frame, which is often
-  blank. On three slides this leaves an empty area in the page image, so the
-  visual index cannot use what the animation shows.
+- **Animated GIFs** on slides are rendered as their first frame by LibreOffice.
+  The assistant now replaces a blank/black first frame with the GIF's most
+  informative frame, so the page image shows what the animation contains. Only a
+  single representative frame is used (the animation itself does not play in the
+  still page image), and if frame extraction fails the rendered page is used
+  unchanged.
 - **Ingestion speed:** each page image is embedded with a separate request, so a
   42-slide deck takes about 40 seconds to add.
 - **Quiz topic filter:** dense search always returns neighbours, so a topic that is
