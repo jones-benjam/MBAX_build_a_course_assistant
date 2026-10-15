@@ -18,6 +18,9 @@ an agent such as Hermes or Claude Code. If you use an agent, point it at
    cp .env.example .env     # then fill in the class endpoint values; never commit .env
    ./run_tests.sh           # should pass offline without any key
    ```
+   In `.env`, also change `MOCK_SERVICES=1` to `MOCK_SERVICES=0`; otherwise the app
+   runs on offline stand-ins. On Windows, use `.venv\Scripts\activate`, and run the
+   tests with `set MOCK_SERVICES=1` then `python -m pytest -q`.
 3. Install LibreOffice if you will work with PowerPoint files.
 
 ## Picking up work
@@ -41,6 +44,14 @@ an agent such as Hermes or Claude Code. If you use an agent, point it at
   either approve or request changes. The author never merges their own PR without
   a review.
 - After merge, delete the branch and move to the next issue.
+
+### Reviewer checklist
+
+- [ ] The change does what the issue's "Done when" list says.
+- [ ] `./run_tests.sh` and `pyflakes` pass on your machine.
+- [ ] No key, real endpoint URL, `.env` or course file in the diff (`git grep API_KEY=`).
+- [ ] Docs touched by the change (README, HANDOFF, ENDPOINTS) are updated.
+- [ ] Leave the review on GitHub (Approve or Request changes), not just in chat.
 
 ## Terms, briefly
 
