@@ -112,7 +112,13 @@ class Library:
             for listener in self._listeners:
                 listener.add_chunks(chunks)
         except Exception:
-            # Roll back partial state so a failed parse leaves nothing behind.
+            # Roll back partial state so a failed parse/index leaves nothing behind,
+            # including in listeners that already received the chunks.
+            for listener in self._listeners:
+                try:
+                    listener.remove_document(doc_id)
+                except Exception:  # pragma: no cover - best-effort cleanup
+                    pass
             self._purge_files(doc_id, stored)
             raise
 
