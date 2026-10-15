@@ -23,7 +23,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(500)
     page.get_by_label("Your question").fill("Find the meme about Vibe Coding on Prod in the Week 2 slides and explain what it shows")
     page.get_by_role("button", name="Ask", exact=True).click()
-    page.wait_for_timeout(4000)
+    # Real services take a few seconds; wait for the sources panel to list a slide.
+    page.get_by_text("[S1]").first.wait_for(timeout=90000)
+    page.wait_for_timeout(1500)
     page.screenshot(path=f"{out}/ask-{theme}.png", full_page=True)
 
     # Quiz tab
@@ -31,7 +33,8 @@ with sync_playwright() as p:
     page.wait_for_timeout(500)
     page.get_by_label("Topic filter (optional)").fill("retrieval augmented generation")
     page.get_by_role("button", name="Generate quiz").click()
-    page.wait_for_timeout(4000)
+    page.get_by_text("Q1.").first.wait_for(timeout=120000)
+    page.wait_for_timeout(1000)
     # pick one option on every visible question
     labels = page.locator("label:has(input[type=radio])")
     seen = set()
@@ -45,7 +48,8 @@ with sync_playwright() as p:
         seen.add(name)
         el.click()
     page.get_by_role("button", name="Submit answers").click()
-    page.wait_for_timeout(2500)
+    page.get_by_text("Score:").first.wait_for(timeout=30000)
+    page.wait_for_timeout(1000)
     page.screenshot(path=f"{out}/quiz-{theme}.png", full_page=True)
     b.close()
 print("done", theme)
