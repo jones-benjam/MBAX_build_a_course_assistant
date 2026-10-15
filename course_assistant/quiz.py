@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .index import Evidence, HybridRetriever
 from .ingest import Chunk
-from .qa import Source, _excerpt, _resolve_sources, rescue_citations, support_score
+from .qa import Source, _excerpt, _resolve_sources, evidence_header, rescue_citations, support_score
 from .services import ChatMessage, LLMClient, ServiceUnavailable
 
 MAX_EVIDENCE = 12
@@ -31,12 +31,13 @@ MAX_IMAGES = 4
 OPTION_LETTERS = "ABCDEF"
 
 QUIZ_SYSTEM_PROMPT = """You are a course assistant writing a PRACTICE QUIZ.
-Write multiple-choice questions that can be answered ONLY from the evidence blocks provided (tagged [S<n>], each from a specific document and page/slide; some include the slide image).
+Write multiple-choice questions that can be answered ONLY from the evidence blocks provided (each starts with a marker [S<n>] followed by its document and its slide or page number; some include the slide image).
 Rules:
 - Every question must be answerable from the evidence; do not use outside knowledge.
 - Exactly 4 options per question, one clearly correct, the others plausible but wrong according to the evidence.
 - Give a short explanation of why the correct option is right, grounded in the evidence.
-- Cite the evidence blocks each question is based on by their TAG numbers (the n in [S<n>]). Tag numbers are NOT page or slide numbers: a block tagged [S2] may come from slide 17; cite 2, not 17. Never invent sources.
+- Put the numbers of the blocks each question is based on (the n in [S<n>]) in "sources". A block number is NOT a slide or page number: block [S2] may come from slide 17; cite 2, not 17. Never invent sources.
+- In questions, options and explanations, never write the word "tag" and never write block markers like [S2]. If you name a slide or page, use the slide or page number from that block's header (for example "slide 17"), not its block number.
 - Vary question types (definitions, comparisons, numbers/dates, interpretation of diagrams or charts shown in images).
 Respond with a single JSON object and nothing else:
 {"questions": [{"question": "...", "options": ["...", "...", "...", "..."], "answer_index": 0, "explanation": "...", "sources": [1]}]}"""
@@ -208,7 +209,7 @@ def build_quiz_messages(evidence: list[Evidence], n_questions: int, topic: str |
     blocks, images = [], []
     for i, ev in enumerate(evidence, start=1):
         c = ev.chunk
-        header = f"[S{i}] (tag {i}) {c.doc_name} — page/slide {c.page_number}"
+        header = evidence_header(i, c)
         if ev.image_path and len(images) < MAX_IMAGES and ev.image_path.exists():
             images.append(ev.image_path)
             header += f" (slide image #{len(images)} attached)"

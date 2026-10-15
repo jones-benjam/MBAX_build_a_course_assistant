@@ -30,10 +30,11 @@ _STOP = set((
 ).split())
 
 SYSTEM_PROMPT = """You are a course assistant. Answer the student's question using ONLY the evidence blocks provided.
-Each block is tagged [S<n>] and comes from a specific document and page/slide; some include the slide image.
+Each block starts with a marker [S<n>] followed by its document and its slide or page number; some include the slide image.
 Rules:
 - Use the text AND the images. When asked to describe or explain a slide, diagram, chart or meme, describe what the image actually shows.
-- Cite the blocks you relied on by their TAG numbers (the n in [S<n>]). Tag numbers are NOT page or slide numbers: a block tagged [S2] may come from slide 17; cite 2, not 17. Never cite a block you did not use and never invent sources.
+- Put the numbers of the blocks you relied on (the n in [S<n>]) in "sources". A block number is NOT a slide or page number: block [S2] may come from slide 17; cite 2, not 17. Never cite a block you did not use and never invent sources.
+- In the answer text you may add markers like [S2] after a statement. Never write the word "tag". If you name a slide or page in the text, use the slide or page number from that block's header, not its block number.
 - If the evidence does not contain the information needed, say so plainly, set "missing_information" to true and cite nothing. Do not guess or use outside knowledge.
 - Be concise and specific; quote key phrases from the evidence where useful.
 Respond with a single JSON object and nothing else:
@@ -122,11 +123,20 @@ def _excerpt(text: str, limit: int = MAX_EXCERPT_CHARS) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def evidence_header(i: int, chunk) -> str:
+    """Header line for evidence block i, naming the document and its slide or page
+    the way a reader would ("Week 2.pptx, slide 33"). The block marker [S<i>] is kept
+    for citations; the header deliberately avoids the word "tag" so the model does not
+    echo it into answers or quiz explanations."""
+    kind = "slide" if chunk.doc_name.lower().endswith((".pptx", ".ppt")) else "page"
+    return f"[S{i}] {chunk.doc_name}, {kind} {chunk.page_number}"
+
+
 def build_messages(question: str, evidence: list[Evidence], *, max_images: int = MAX_IMAGES) -> list[ChatMessage]:
     blocks, images = [], []
     for i, ev in enumerate(evidence, start=1):
         c = ev.chunk
-        header = f"[S{i}] (tag {i}) {c.doc_name} — page/slide {c.page_number}"
+        header = evidence_header(i, c)
         if ev.image_path and len(images) < max_images and ev.image_path.exists():
             images.append(ev.image_path)
             header += f" (slide image #{len(images)} attached)"

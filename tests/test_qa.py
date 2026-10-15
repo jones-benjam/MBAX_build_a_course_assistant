@@ -57,7 +57,8 @@ def test_build_messages_tags_blocks_and_attaches_images(assistant):
     msgs = build_messages("How is grading weighted?", res.evidence, max_images=2)
     assert msgs[0].role == "system" and "missing_information" in msgs[0].text
     user = msgs[1]
-    assert "[S1]" in user.text and "page/slide" in user.text and "Question: How is grading weighted?" in user.text
+    assert "[S1] syllabus.pdf, page " in user.text and "Question: How is grading weighted?" in user.text
+    assert "tag" not in user.text.lower()  # the model echoed "(Tag 5)" into prose when headers said "tag"
     assert 1 <= len(user.images) <= 2 and all(p.exists() for p in user.images)
 
 
@@ -166,3 +167,20 @@ def test_slide_number_cited_as_block_tag_is_rescued(assistant):
     # A correct tag is left alone, and a page-number collision with a well-supported block is kept.
     assert rescue_citations(answer, [2], evidence) == ([2], [])
     assert rescue_citations("instruct and mixture of experts", [1], evidence) == ([1], [])
+
+
+def test_evidence_headers_name_slides_and_prompts_forbid_tag_in_prose():
+    """Regression for quiz explanations like "Slide 5 (Tag 5)": headers name the real
+    slide or page, and both prompts tell the model never to write "tag" in prose."""
+    from course_assistant.ingest import Chunk
+    from course_assistant.qa import SYSTEM_PROMPT, evidence_header
+    from course_assistant.quiz import QUIZ_SYSTEM_PROMPT
+
+    deck = Chunk(chunk_id="d:11:0", doc_id="d", doc_name="Week 5.pptx", page_number=11, text="x")
+    pdf = Chunk(chunk_id="s:2:0", doc_id="s", doc_name="Syllabus.pdf", page_number=2, text="x")
+    assert evidence_header(5, deck) == "[S5] Week 5.pptx, slide 11"
+    assert evidence_header(1, pdf) == "[S1] Syllabus.pdf, page 2"
+    for prompt in (SYSTEM_PROMPT, QUIZ_SYSTEM_PROMPT):
+        assert 'Never write the word "tag"' in prompt or 'never write the word "tag"' in prompt
+        assert "TAG numbers" not in prompt
+
