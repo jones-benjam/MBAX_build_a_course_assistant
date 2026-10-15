@@ -1,0 +1,18 @@
+# secrets
+.env
+*.key
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# runtime data (indexes, uploads, rendered pages) – results are kept
+data/uploads/
+data/index/
+data/pages/
+data/*.db
+data/*.json
+!data/results/
+# os / editor
+.DS_Store
+.vscode/
