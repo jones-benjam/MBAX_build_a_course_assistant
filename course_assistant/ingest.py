@@ -244,12 +244,19 @@ def _gif_pictures(pptx_path: Path) -> dict[int, list[dict]]:
     return out
 
 
+# A rendered area whose luminance standard deviation is below this is treated as
+# blank (the empty first frame LibreOffice draws); anything above it already
+# shows content and is left alone.
+BLANK_AREA_STDDEV = 3.0
+
+
 def _best_gif_frame(blob: bytes) -> Image.Image:
-    """Pick the most informative frame of an animated GIF.
+    """Pick the most informative frame of an animated GIF, as RGBA.
 
     Blank/black first frames (the LibreOffice issue) are skipped by choosing the
     frame with the highest luminance standard deviation -- a blank frame has
-    near-zero variance, a meaningful frame does not.
+    near-zero variance, a meaningful frame does not. The frame keeps its alpha
+    channel so transparent areas are not turned black when pasted.
     """
     gif = Image.open(BytesIO(blob))
     best, best_metric = None, -1.0
@@ -258,15 +265,18 @@ def _best_gif_frame(blob: bytes) -> Image.Image:
         metric = stat.stddev[0] if stat.stddev else 0.0
         if metric > best_metric:
             best_metric = metric
-            best = frame.convert("RGB")
-    return best if best is not None else gif.convert("RGB")
+            best = frame.convert("RGBA")
+    return best if best is not None else gif.convert("RGBA")
 
 
 def _patch_gif_frames(pages: list["Page"], gifs: dict[int, list[dict]]) -> None:
-    """Paste a representative GIF frame over the rendered (possibly blank) one.
+    """Paste a representative GIF frame over the rendered one, if that is blank.
 
-    Runs after the PDF pages are rendered. A slide whose first GIF frame rendered
-    blank gets its display area filled with the most detailed GIF frame, so the
+    Runs after the PDF pages are rendered. Only a GIF area that rendered blank
+    (luminance stddev below BLANK_AREA_STDDEV) is patched; GIFs that already
+    rendered with content, such as static logos and icons, are left untouched.
+    The frame is pasted with its alpha channel as the mask, so transparent parts
+    keep whatever was rendered underneath. A patched area gets the most detailed GIF frame, so the
     page image shown to users and passed to the visual index actually shows the
     animation's content. Failures are logged and skipped per slide so a problem
     with one image never breaks ingestion of the whole deck.
@@ -295,9 +305,12 @@ def _patch_gif_frames(pages: list["Page"], gifs: dict[int, list[dict]]) -> None:
                 )
                 if box[2] <= box[0] or box[3] <= box[1]:
                     continue
+                area = ImageStat.Stat(img.crop(box).convert("L"))
+                if area.stddev and area.stddev[0] >= BLANK_AREA_STDDEV:
+                    continue  # already shows content; do not overwrite it
                 frame = _best_gif_frame(pic["blob"]).resize(
                     (box[2] - box[0], box[3] - box[1]))
-                img.paste(frame, box)
+                img.paste(frame, box, frame)
                 patched = True
             except Exception as exc:  # pragma: no cover - defensive
                 _log.warning("Skipping GIF patch on slide %s: %s", page.page_number, exc)
