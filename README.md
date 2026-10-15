@@ -188,7 +188,9 @@ image-only slides such as the meme on Week 2 slide 33. Animated GIFs are handled
 too: LibreOffice draws only their first frame (which on three slides — Week 2
 slide 37, Week 4 slide 5, Week 5 slide 8 — is blank or black), so the assistant
 pastes the GIF's most informative frame over that area after conversion, keeping
-the page image and the visual index meaningful.
+the page image and the visual index meaningful. Only areas that rendered blank are
+patched, and the frame's transparency is kept, so GIF logos and icons that already
+render correctly are left untouched.
 
 ## Tests
 
@@ -315,7 +317,9 @@ We documented this instead of adding a special case.
   informative frame, so the page image shows what the animation contains. Only a
   single representative frame is used (the animation itself does not play in the
   still page image), and if frame extraction fails the rendered page is used
-  unchanged.
+  unchanged. GIFs inside grouped shapes are not detected, picture cropping is
+  ignored, and decks added before this fix keep their old page images until they
+  are removed and added again.
 - **Ingestion speed:** each page image is embedded with a separate request, so a
   42-slide deck takes about 40 seconds to add.
 - **Quiz text can leak internal evidence tags.** Generated questions and

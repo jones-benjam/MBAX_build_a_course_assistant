@@ -101,3 +101,54 @@ def test_pptx_with_gif_renders_meaningful_slide_image(tmp_path):
     arr = np.asarray(Image.open(pages[0].image_path).convert("L"))
     # Slide image must contain visible content where the GIF was patched.
     assert arr.std() > 5
+
+
+def make_transparent_gif(path: Path) -> Path:
+    """Static logo-style GIF: transparent background with a dark square."""
+    img = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    for x in range(30, 70):
+        for y in range(30, 70):
+            img.putpixel((x, y), (30, 30, 200, 255))
+    img.save(path, transparency=0)
+    return path
+
+
+def test_best_gif_frame_keeps_transparency(tmp_path):
+    gif = make_transparent_gif(tmp_path / "logo.gif")
+    frame = ingest._best_gif_frame(gif.read_bytes())
+    assert frame.mode == "RGBA"
+    assert frame.getpixel((2, 2))[3] == 0  # transparent corner stays transparent
+
+
+def test_patch_does_not_blacken_transparent_gif_background(tmp_path):
+    # Blank white rendered area + transparent GIF: the corners must stay white.
+    page_png = tmp_path / "page_0001.png"
+    Image.new("RGB", (400, 300), "white").save(page_png)
+    gif = make_transparent_gif(tmp_path / "logo.gif")
+    pages = [Page(doc_id="d", doc_name="deck.pptx", page_number=1,
+                  text="", image_path=page_png)]
+    gifs = {1: [{"left": 0, "top": 0, "width": 13_333_333, "height": 7_500_000,
+                 "blob": gif.read_bytes()}]}
+    ingest._patch_gif_frames(pages, gifs)
+
+    img = Image.open(page_png).convert("RGB")
+    assert img.getpixel((5, 5)) == (255, 255, 255)        # background not black
+    assert img.getpixel((200, 150)) != (255, 255, 255)    # the square was drawn
+
+
+def test_patch_leaves_area_with_content_unchanged(tmp_path):
+    # A GIF area that already rendered with content (e.g. a static logo) is not overwritten.
+    page_png = tmp_path / "page_0001.png"
+    rendered = Image.new("RGB", (400, 300), "white")
+    for x in range(0, 400, 4):
+        for y in range(0, 300):
+            rendered.putpixel((x, y), (200, 30, 30))
+    rendered.save(page_png)
+    before = page_png.read_bytes()
+    gif = make_blank_first_gif(tmp_path / "anim.gif")
+    pages = [Page(doc_id="d", doc_name="deck.pptx", page_number=1,
+                  text="", image_path=page_png)]
+    gifs = {1: [{"left": 0, "top": 0, "width": 13_333_333, "height": 7_500_000,
+                 "blob": gif.read_bytes()}]}
+    ingest._patch_gif_frames(pages, gifs)
+    assert page_png.read_bytes() == before
