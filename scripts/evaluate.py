@@ -91,10 +91,13 @@ def expected_rank(q: dict, evidence) -> int | None:
 # ---------------------------------------------------------------- running
 
 def run_question(assistant, q: dict, use_reranker: bool) -> dict:
+    # Retrieve once and hand the same evidence to the answerer, so the rank we record
+    # is exactly the evidence the LLM saw and the reranker runs once per question.
+    # End-to-end time = retrieval time + answering time.
     t0 = time.time()
     retrieval = assistant.retrieve(q["question"], use_reranker=use_reranker)
     retrieval_s = time.time() - t0
-    ans = assistant.ask(q["question"], use_reranker=use_reranker)
+    ans = assistant.ask(q["question"], use_reranker=use_reranker, retrieval=retrieval)
     verdict = judge(q, ans.answer, ans.missing_information, ans.error, [(s.doc_name, s.page_number) for s in ans.sources])
     return {
         "id": q["id"], "type": q["type"], "question": q["question"], "rerank": use_reranker,
@@ -104,9 +107,26 @@ def run_question(assistant, q: dict, use_reranker: bool) -> dict:
         "image_shown": any(s.image_path is not None for s in ans.sources),
         "sources": [f"{s.doc_name} p.{s.page_number}" for s in ans.sources],
         "expected_rank_in_retrieval": expected_rank(q, retrieval.evidence),
-        "retrieval_s": round(retrieval_s, 2), "answer_s": round(ans.latency_s, 2),
+        "retrieval_s": round(retrieval_s, 2), "answer_s": round(retrieval_s + ans.latency_s, 2),
         "reranked": ans.reranked, "warnings": ans.warnings, "error": ans.error,
         "answer": ans.answer,
+    }
+
+
+def retrieval_metrics(ranks: list[int | None]) -> dict:
+    """Standard retrieval metrics over answerable questions, from the 1-based rank of
+    the expected page in the evidence (None = not retrieved).
+
+    recall@k: share of questions whose expected page is in the top k.
+    MRR (mean reciprocal rank): mean of 1/rank, counting a miss as 0; 1.0 means the
+    expected page always came first."""
+    n = len(ranks)
+    if n == 0:
+        return {"mrr": 0.0, "recall_at_1": 0.0, "recall_at_3": 0.0}
+    return {
+        "mrr": round(sum(1.0 / r for r in ranks if r) / n, 3),
+        "recall_at_1": round(sum(1 for r in ranks if r and r <= 1) / n, 3),
+        "recall_at_3": round(sum(1 for r in ranks if r and r <= 3) / n, 3),
     }
 
 
@@ -116,6 +136,7 @@ def summarise(rows: list[dict]) -> dict:
         rs = [r for r in rows if r["rerank"] is mode]
         answerable = [r for r in rs if r["type"] != "unanswerable"]
         modes["rerank_on" if mode else "rerank_off"] = {
+            **retrieval_metrics([r["expected_rank_in_retrieval"] for r in answerable]),
             "n": len(rs),
             "correct": sum(r["correct"] for r in rs),
             "supported": sum(r["supported"] for r in rs),
@@ -141,6 +162,9 @@ def to_markdown(meta: dict, summary: dict, rows: list[dict]) -> str:
                      ("expected_page_cited", "Expected page cited (answerable qs)"),
                      ("expected_in_top_k", "Expected page in retrieved top-k"),
                      ("mean_expected_rank", "Mean rank of expected page"),
+                     ("mrr", "Mean reciprocal rank (MRR)"),
+                     ("recall_at_1", "Recall@1 (expected page ranked first)"),
+                     ("recall_at_3", "Recall@3 (expected page in top 3)"),
                      ("mean_retrieval_s", "Mean retrieval latency (s)"), ("mean_answer_s", "Mean end-to-end latency (s)")]:
         out.append(f"| {label} | {on[k]}{'/' + str(on['n']) if k in ('correct', 'supported') else ''} | "
                    f"{off[k]}{'/' + str(off['n']) if k in ('correct', 'supported') else ''} |")

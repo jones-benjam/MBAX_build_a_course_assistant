@@ -127,7 +127,9 @@ Notes:
   useful for development and is what the test suite uses, but its answers are not
   meaningful.
 - Other settings: `DATA_DIR` (default `data`), `CHUNK_SIZE`, `CHUNK_OVERLAP`,
-  `TOP_K` (evidence items per answer, default 8), `USE_RERANKER` (default on).
+  `TOP_K` (evidence items per answer, default 8), `USE_RERANKER` (default on),
+  `RERANK_CANDIDATES` (most pages or slides sent to the reranker per question,
+  default 10; each page is scored once, with its image sent once).
 
 ### Launch
 
@@ -207,12 +209,13 @@ set MOCK_SERVICES=1
 python -m pytest -q
 ```
 
-The offline suite has 86 tests: unit tests for parsing, chunking, indexing, fusion,
+The offline suite has 99 tests: unit tests for parsing, chunking, indexing, fusion,
 JSON validation, source support, quiz grading, animated-GIF handling, key redaction
 in error messages and the HTTP request formats, and end-to-end tests through the app
 for adding, duplicate uploads, removal, answering, missing information, quizzes, and
-services being unavailable. Three LibreOffice-dependent tests (two PPTX and one DOCX)
-are skipped if LibreOffice is not installed, so 83 run on a machine without it.
+services being unavailable, plus the retrieval speed-ups, query caching and
+control-token handling. Three LibreOffice-dependent tests (two PPTX and one DOCX)
+are skipped if LibreOffice is not installed, so 96 run on a machine without it.
 
 With a filled `.env`, ten more tests check the real services and the real course
 files: each endpoint, duplicate upload, a syllabus answer, the meme found through
@@ -288,7 +291,9 @@ app says the information is missing and cites nothing. We also read every answer
   and answers carried fewer extra citations, so the first image shown is the right
   one. That matters most for visual questions, where the LLM cannot compensate with
   text. A few extra seconds is acceptable for a study tool, and users who want quick
-  text lookups can switch it off.
+  text lookups can switch it off. Reranker off is a reasonable default too: it was
+  as accurate on this question set and about 2.5 times faster, so the choice is
+  precision of the first slide shown against speed, not correctness.
 
 ### Failure investigated: special tokens disappear from answers
 
@@ -300,12 +305,16 @@ tokens and it returned empty strings in their place, with and without vLLM's
 `skip_special_tokens: false` option. The tokens are the model's own control tokens
 and the server strips them from generated text. Retrieval was correct and the slide
 excerpt shown next to the answer contains both tokens, so the user still sees them.
-We documented this instead of adding a special case.
+The app now works around this: control tokens in the evidence and the question are
+sent to the model in a spaced form (`< |im_end| >`), which the server does not
+strip, and the answer is turned back into `<|im_end|>` before it is shown. This
+has unit tests but has not yet been re-run against the live endpoint.
 
 ## Limitations and known issues
 
-- **Control tokens are stripped from answers**, as described above. Questions about
-  chat templates show the tokens only in the source excerpt.
+- **Control tokens in answers** depend on the model copying the spaced form
+  described above. If it writes the raw token anyway, the server still strips it;
+  the source excerpt always shows the original tokens.
 - **Slide numbers vs. evidence numbers:** the LLM sometimes cites a slide number
   where it should cite an evidence tag such as `[S3]`. The app detects this and
   remaps the citation to the block from that slide when it supports the answer,
@@ -329,11 +338,14 @@ We documented this instead of adding a special case.
   "tag" numbers, and quiz explanations sometimes echoed them or named the wrong
   slide (the committed `docs/screenshots/quiz-light.png` predates the fix: its Q1
   says "Slide 5 (Tag 5)" while citing Week 5 slide 11). Evidence is now labelled by
-  document and slide or page, and the prompts forbid the word "tag" in prose. In a
+  document and slide or page, and the prompts forbid calling the evidence blocks
+  "tags" (the word itself stays allowed for course content about tags). In a
   check of 30 real quiz questions, explanations naming a slide outside their cited
   sources fell from 5 to 0, and none mentioned tags. The model still sometimes
   writes markers like "[S2]" in explanations; these match the source labels shown
-  under each question. The cited sources remain the authority, not the prose.
+  under each question. This differs by design: answers may carry inline "[S2]"
+  markers, which match the numbered sources listed under the answer, while quiz
+  prompts ask for none. The cited sources remain the authority, not the prose.
 - **Quiz topic filter:** dense search always returns neighbours, so a topic that is
   not in the materials still produces a quiz from the closest content instead of
   an error.
