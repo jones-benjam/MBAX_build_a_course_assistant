@@ -88,6 +88,9 @@ slide text.
   comparison. Note that `scripts/evaluate.py` retrieves twice per question (once to
   measure the expected page's rank, once inside the answer), so the reranker runs
   twice per question during evaluation; only the second run is in the end-to-end time.
+  (Since this run, the script retrieves once and passes that evidence to the
+  answerer, and the reranker scores each page once instead of each chunk; see
+  "Changes since this run" below.)
 - **Decision: keep the reranker ON by default** and keep the toggle in the UI. In
   both modes the cited (and therefore displayed) slide was the expected one for all
   nine answerable questions, and reranker OFF was as accurate and about 2.5 times
@@ -95,7 +98,9 @@ slide text.
   evidence and answers carry fewer extra citations, so the first image shown is the
   right one. That matters most for visual questions, where the LLM cannot compensate
   with text. The few extra seconds are acceptable for a study tool; users who want
-  fast text-only lookups can switch it off.
+  fast text-only lookups can switch it off. Reranker OFF would also be a defensible
+  default on this evidence: the trade-off is precision of the first slide shown
+  against speed, not answer correctness.
 
 ## Limitation investigated: special tokens disappear from answers
 
@@ -109,8 +114,8 @@ strings are the model's own control tokens, and the vLLM server strips them from
 generated text. The retrieved slide is correct and is shown to the user with its
 excerpt, so the information is still on screen, but the composed answer cannot
 contain it. A fix would need the model to write such tokens in an escaped form (for
-example with spaces inside the brackets); we documented it instead of adding a
-special case.
+example with spaces inside the brackets). That workaround has since been added (see
+"Changes since this run"); it has not yet been checked on the live endpoint.
 
 Two smaller findings from the run, both already handled by the app:
 
@@ -126,3 +131,25 @@ Two smaller findings from the run, both already handled by the app:
 - Only one run per question (temperature 0); variance across runs was not measured.
 - Chunking parameters and `top_k` were held fixed; only the reranker was compared.
 - Weeks 6+ and the "Local Inference" deck were not loaded.
+
+## Changes since this run (results above not yet re-run)
+
+These changes affect speed and the ChatML failure; the numbers above predate them.
+Re-run `MOCK_SERVICES=0 python scripts/evaluate.py --materials course_materials`
+to refresh them.
+
+- **Page-level reranking:** candidates are grouped by page or slide and each page is
+  scored once, so a slide image is sent to the reranker once rather than once per
+  chunk. At most `RERANK_CANDIDATES` pages (default 10) are scored; the rest keep
+  their fused order behind them.
+- **Parallel retrieval:** keyword, text-embedding and visual-embedding searches run
+  concurrently; the fused ranking is unchanged.
+- **Query-embedding cache:** repeated questions skip the two embedding calls.
+- **Single retrieval in the evaluation:** the rank recorded is now exactly the
+  evidence the LLM saw, the reranker runs once per question, and end-to-end time is
+  retrieval time plus answering time.
+- **Retrieval metrics:** the report adds mean reciprocal rank (MRR), recall@1 and
+  recall@3 over the answerable questions. From the ranks above, reranker ON has
+  MRR 1.0, recall@1 9/9 and recall@3 9/9; reranker OFF has MRR 0.74,
+  recall@1 5/9 and recall@3 9/9.
+- **Control-token workaround:** see the limitation above.

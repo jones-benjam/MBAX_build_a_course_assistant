@@ -52,6 +52,7 @@ class Settings:
     chunk_overlap: int = 120
     top_k: int = 8
     use_reranker: bool = True
+    rerank_candidates: int = 10      # max distinct pages/slides sent to the reranker per question
     supported_extensions: tuple[str, ...] = field(
         default=(".pdf", ".pptx", ".docx", ".txt", ".md")
     )
@@ -101,4 +102,5 @@ def load_settings(dotenv: str | Path | None = ".env") -> Settings:
         chunk_overlap=int(os.environ.get("CHUNK_OVERLAP", "120")),
         top_k=int(os.environ.get("TOP_K", "8")),
         use_reranker=_env_bool("USE_RERANKER", default=True),
+        rerank_candidates=int(os.environ.get("RERANK_CANDIDATES", "10")),
     )

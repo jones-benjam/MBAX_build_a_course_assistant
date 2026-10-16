@@ -37,6 +37,7 @@ Rules:
 - In the answer text you may add markers like [S2] after a statement. Never write the word "tag". If you name a slide or page in the text, use the slide or page number from that block's header, not its block number.
 - If the evidence does not contain the information needed, say so plainly, set "missing_information" to true and cite nothing. Do not guess or use outside knowledge.
 - Be concise and specific; quote key phrases from the evidence where useful.
+- Special tokens such as < |im_start| > appear in the evidence with spaces inside the angle brackets. Copy them exactly in that spaced form; never remove the spaces.
 Respond with a single JSON object and nothing else:
 {"answer": "<your answer>", "sources": [<block numbers you used>], "missing_information": <true|false>}"""
 
@@ -118,6 +119,26 @@ class Answer:
 
 # ----------------------------------------------------------------------------
 
+_CONTROL_TOKEN = re.compile(r"<\|([A-Za-z0-9_.\-]{1,40})\|>")
+_SPACED_TOKEN = re.compile(r"<\s*\|\s*([A-Za-z0-9_.\-]{1,40})\s*\|\s*>")
+
+
+def escape_control_tokens(text: str) -> str:
+    """Write chat-template control tokens (`<|im_end|>`) in a spaced form (`< |im_end| >`).
+
+    The class LLM server strips its own control tokens from generated text, so an
+    answer that names `<|im_end|>` arrives with the token missing (see
+    docs/EVALUATION.md). In the spaced form the model writes ordinary characters,
+    which survive; `restore_control_tokens` turns them back before display. Only the
+    copy sent to the model is escaped; stored excerpts and sources keep the original."""
+    return _CONTROL_TOKEN.sub(r"< |\1| >", text)
+
+
+def restore_control_tokens(text: str) -> str:
+    """Undo `escape_control_tokens` in model output (tolerates extra or missing spaces)."""
+    return _SPACED_TOKEN.sub(r"<|\1|>", text)
+
+
 def _excerpt(text: str, limit: int = MAX_EXCERPT_CHARS) -> str:
     text = text.strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
@@ -140,8 +161,8 @@ def build_messages(question: str, evidence: list[Evidence], *, max_images: int =
         if ev.image_path and len(images) < max_images and ev.image_path.exists():
             images.append(ev.image_path)
             header += f" (slide image #{len(images)} attached)"
-        blocks.append(f"{header}\n{_excerpt(c.text)}")
-    user = f"Question: {question}\n\nEvidence:\n\n" + "\n\n".join(blocks)
+        blocks.append(f"{header}\n{escape_control_tokens(_excerpt(c.text))}")
+    user = f"Question: {escape_control_tokens(question)}\n\nEvidence:\n\n" + "\n\n".join(blocks)
     return [ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", user, images=images)]
 
 
@@ -233,14 +254,18 @@ class QuestionAnswerer:
         self.top_k = top_k
 
     def answer(self, question: str, *, doc_ids: set[str] | None = None, use_reranker: bool | None = None,
-               top_k: int | None = None) -> Answer:
+               top_k: int | None = None, retrieval: RetrievalResult | None = None) -> Answer:
+        """Answer a question. Pass `retrieval` to reuse evidence already retrieved for
+        this question (the evaluation does this); `latency_s` then covers only the
+        answering step, not retrieval."""
         t0 = time.time()
         question = question.strip()
         if not question:
             return Answer(question, "Please enter a question.", [], False, True, 1.0, [], latency_s=0.0)
 
-        retrieval: RetrievalResult = self.retriever.retrieve(
-            question, top_k=top_k or self.top_k, doc_ids=doc_ids, use_reranker=use_reranker)
+        if retrieval is None:
+            retrieval = self.retriever.retrieve(
+                question, top_k=top_k or self.top_k, doc_ids=doc_ids, use_reranker=use_reranker)
         warnings = list(retrieval.warnings)
         evidence = retrieval.evidence
         if not evidence:
@@ -287,13 +312,15 @@ class QuestionAnswerer:
     def _ask_llm(self, messages: list[ChatMessage]) -> AnswerPayload:
         raw = self.llm.chat(messages, json_mode=True)
         try:
-            return parse_payload(raw)
+            payload = parse_payload(raw)
         except (json.JSONDecodeError, ValidationError):
             retry = list(messages) + [
                 ChatMessage("assistant", raw),
                 ChatMessage("user", "That was not valid JSON. Reply with ONLY the JSON object described in the instructions."),
             ]
-            return parse_payload(self.llm.chat(retry, json_mode=True))
+            payload = parse_payload(self.llm.chat(retry, json_mode=True))
+        payload.answer = restore_control_tokens(payload.answer)
+        return payload
 
     @staticmethod
     def _fallback_sources(evidence: list[Evidence], n: int = 3) -> list[Source]:

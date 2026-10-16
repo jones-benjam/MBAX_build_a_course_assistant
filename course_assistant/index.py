@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -32,6 +35,36 @@ def _tokenize(text: str) -> list[str]:
 def _batched(items: Sequence, n: int) -> Iterable[Sequence]:
     for i in range(0, len(items), n):
         yield items[i:i + n]
+
+
+class _QueryCache:
+    """Small thread-safe LRU cache for query embeddings.
+
+    A query's embedding depends only on the query text and the model, not on the
+    indexed documents, so it never goes stale when documents are added or removed.
+    Repeated questions (re-asking, quiz topics, evaluation runs) skip a network call.
+    Failed calls are not cached."""
+
+    def __init__(self, maxsize: int = 256):
+        self._data: OrderedDict[str, list[float]] = OrderedDict()
+        self._max = maxsize
+        self._lock = threading.Lock()
+
+    def get_or_compute(self, key: str, compute) -> list[float]:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+                return self._data[key]
+        value = compute()
+        with self._lock:
+            self._data[key] = value
+            self._data.move_to_end(key)
+            while len(self._data) > self._max:
+                self._data.popitem(last=False)
+        return value
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
 # ----------------------------------------------------------------------------
@@ -122,6 +155,7 @@ class TextVectorIndex(_ChromaBase):
         super().__init__(path, "text")
         self._svc = services
         self._batch = batch_size
+        self._query_cache = _QueryCache()
 
     def add_chunks(self, chunks: list[Chunk]) -> None:
         for batch in _batched(chunks, self._batch):
@@ -133,7 +167,7 @@ class TextVectorIndex(_ChromaBase):
             )
 
     def search(self, query: str, k: int, doc_ids: set[str] | None = None) -> list[tuple[str, float]]:
-        emb = self._svc.text_embed.embed_query([query])[0]
+        emb = self._query_cache.get_or_compute(query, lambda: self._svc.text_embed.embed_query([query])[0])
         return [(cid, score) for cid, score, _ in self._query(emb, k, doc_ids)]
 
 
@@ -145,6 +179,7 @@ class VisualIndex(_ChromaBase):
         super().__init__(path, "visual")
         self._svc = services
         self._batch = batch_size
+        self._query_cache = _QueryCache()
 
     @staticmethod
     def page_key(doc_id: str, page_number: int) -> str:
@@ -166,7 +201,7 @@ class VisualIndex(_ChromaBase):
             )
 
     def search(self, query: str, k: int, doc_ids: set[str] | None = None) -> list[tuple[str, float, dict]]:
-        emb = self._svc.visual_embed.embed_text([query])[0]
+        emb = self._query_cache.get_or_compute(query, lambda: self._svc.visual_embed.embed_text([query])[0])
         return self._query(emb, k, doc_ids)
 
 
@@ -233,26 +268,38 @@ class HybridRetriever:
         warnings: list[str] = []
         ranked: dict[str, list[str]] = {}
 
-        # Keyword
-        try:
-            ranked["keyword"] = [cid for cid, _ in self.keyword.search(query, n, doc_ids)]
-        except Exception as e:  # pragma: no cover - defensive
-            warnings.append(f"Keyword search failed: {e}")
-        # Text embeddings
-        try:
-            ranked["text"] = [cid for cid, _ in self.text.search(query, n, doc_ids)]
-        except ServiceUnavailable as e:
-            warnings.append(f"Text embedding service unavailable; using remaining channels. ({e})")
-        # Visual embeddings -> map page hits to that page's chunks
-        try:
-            visual_hits = self.visual.search(query, n, doc_ids)
+        def keyword_channel() -> list[str]:
+            return [cid for cid, _ in self.keyword.search(query, n, doc_ids)]
+
+        def text_channel() -> list[str]:
+            return [cid for cid, _ in self.text.search(query, n, doc_ids)]
+
+        def visual_channel() -> list[str]:
+            # Visual hits are pages; map each to the page's first chunk, which represents the slide.
             vis_ids: list[str] = []
-            for _, _, meta in visual_hits:
+            for _, _, meta in self.visual.search(query, n, doc_ids):
                 page_chunks = self.store.page(meta["doc_id"], int(meta["page_number"]))
-                for c in page_chunks[:1]:  # the page's first chunk represents the slide
+                for c in page_chunks[:1]:
                     if c.chunk_id not in vis_ids:
                         vis_ids.append(c.chunk_id)
-            ranked["visual"] = vis_ids
+            return vis_ids
+
+        # The two embedding channels are independent network calls, so the three
+        # searches run concurrently. Results are collected in a fixed order, so fusion
+        # (and therefore the final ranking) is the same as running them one by one.
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {"keyword": pool.submit(keyword_channel), "text": pool.submit(text_channel),
+                       "visual": pool.submit(visual_channel)}
+        try:
+            ranked["keyword"] = futures["keyword"].result()
+        except Exception as e:  # pragma: no cover - defensive
+            warnings.append(f"Keyword search failed: {e}")
+        try:
+            ranked["text"] = futures["text"].result()
+        except ServiceUnavailable as e:
+            warnings.append(f"Text embedding service unavailable; using remaining channels. ({e})")
+        try:
+            ranked["visual"] = futures["visual"].result()
         except ServiceUnavailable as e:
             warnings.append(f"Visual embedding service unavailable; using remaining channels. ({e})")
 
@@ -278,19 +325,52 @@ class HybridRetriever:
         reranked = False
         if use_reranker and len(candidates) > 1:
             try:
-                payload = [{"text": e.chunk.text, "image": str(e.image_path) if e.image_path else None}
-                           for e in candidates]
-                scores = self.services.rerank.rerank(query, payload)
-                for e, s in zip(candidates, scores):
-                    e.rerank_score = float(s)
-                    # Fused score as a small tie-breaker so reranker ties keep retrieval order.
-                    e.score = float(s) + e.fused_score * 1e-3
-                candidates.sort(key=lambda e: e.score, reverse=True)
+                self._rerank_by_page(query, candidates)
                 reranked = True
             except ServiceUnavailable as e:
                 warnings.append(f"Reranker unavailable; showing fused retrieval order. ({e})")
 
         return RetrievalResult(candidates[:top_k], warnings, reranked)
+
+    RERANK_TEXT_CHARS = 4000
+
+    def _rerank_by_page(self, query: str, candidates: list[Evidence]) -> None:
+        """Rerank candidates one page/slide at a time, in place.
+
+        Several candidate chunks often come from the same page and share its image.
+        Sending each chunk separately would send that image to the multimodal reranker
+        several times, and image scoring is what makes reranking slow. Instead, the
+        candidates are grouped by page (in fused order), each page is scored once with
+        its candidates' text joined plus its image, and every chunk takes its page's
+        score. At most `settings.rerank_candidates` pages are scored; candidates from
+        further pages keep their fused order behind the scored ones. Within a page,
+        the fused score breaks ties, so chunk order there is unchanged.
+        """
+        pages: OrderedDict[str, list[Evidence]] = OrderedDict()
+        for e in candidates:
+            pages.setdefault(VisualIndex.page_key(e.chunk.doc_id, e.chunk.page_number), []).append(e)
+        keys = list(pages)[: max(1, self.settings.rerank_candidates)]
+        payload = []
+        for key in keys:
+            group = pages[key]
+            text = "\n\n".join(e.chunk.text for e in group)[: self.RERANK_TEXT_CHARS]
+            image = next((e.image_path for e in group if e.image_path), None)
+            payload.append({"text": text, "image": str(image) if image else None})
+        scores = [float(s) for s in self.services.rerank.rerank(query, payload)]
+        if len(scores) != len(keys):
+            raise ServiceUnavailable("Reranker returned a different number of scores than candidates")
+        floor = min(scores) - 1.0
+        scored = set(keys)
+        for key, s in zip(keys, scores):
+            for e in pages[key]:
+                e.rerank_score = s
+                # Fused score as a small tie-breaker so reranker ties keep retrieval order.
+                e.score = s + e.fused_score * 1e-3
+        for key, group in pages.items():
+            if key not in scored:
+                for e in group:
+                    e.score = floor + e.fused_score * 1e-3
+        candidates.sort(key=lambda e: e.score, reverse=True)
 
 
 class ChunkStore:
