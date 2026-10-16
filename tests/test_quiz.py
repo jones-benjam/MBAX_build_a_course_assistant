@@ -105,7 +105,8 @@ def test_topic_and_doc_filter_restrict_evidence(assistant):
     assistant.quizzes.llm = llm
     assistant.generate_quiz(doc_ids=week5, topic="reranking", n_questions=1)
     user_msg = llm.calls[0][1].text
-    assert "Focus on the topic: reranking" in user_msg and "[S1]" in user_msg
+    assert "Focus on the topic: reranking" in user_msg and "[S1] week5.pdf, page " in user_msg
+    assert "tag" not in user_msg.lower()
 
 
 def test_unmatched_topic_falls_back_to_sample_with_warning(assistant, monkeypatch):

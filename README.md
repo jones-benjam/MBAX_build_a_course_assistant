@@ -207,12 +207,12 @@ set MOCK_SERVICES=1
 python -m pytest -q
 ```
 
-The offline suite has 85 tests: unit tests for parsing, chunking, indexing, fusion,
+The offline suite has 86 tests: unit tests for parsing, chunking, indexing, fusion,
 JSON validation, source support, quiz grading, animated-GIF handling, key redaction
 in error messages and the HTTP request formats, and end-to-end tests through the app
 for adding, duplicate uploads, removal, answering, missing information, quizzes, and
 services being unavailable. Three LibreOffice-dependent tests (two PPTX and one DOCX)
-are skipped if LibreOffice is not installed, so 82 run on a machine without it.
+are skipped if LibreOffice is not installed, so 83 run on a machine without it.
 
 With a filled `.env`, ten more tests check the real services and the real course
 files: each endpoint, duplicate upload, a syllabus answer, the meme found through
@@ -325,11 +325,15 @@ We documented this instead of adding a special case.
   are removed and added again.
 - **Ingestion speed:** each page image is embedded with a separate request, so a
   42-slide deck takes about 40 seconds to add.
-- **Quiz text can leak internal evidence tags.** Generated questions and
-  explanations sometimes say things like "Slide 11 (Tag 5)", and an explanation can
-  name the wrong slide (in `docs/screenshots/quiz-light.png`, Q1's explanation says
-  slide 5 while its cited source is Week 5 slide 11). The cited source shown under
-  each question is the correct one; the slide number in the prose may not be.
+- **Slide numbers in generated prose.** Earlier prompts labelled evidence with
+  "tag" numbers, and quiz explanations sometimes echoed them or named the wrong
+  slide (the committed `docs/screenshots/quiz-light.png` predates the fix: its Q1
+  says "Slide 5 (Tag 5)" while citing Week 5 slide 11). Evidence is now labelled by
+  document and slide or page, and the prompts forbid the word "tag" in prose. In a
+  check of 30 real quiz questions, explanations naming a slide outside their cited
+  sources fell from 5 to 0, and none mentioned tags. The model still sometimes
+  writes markers like "[S2]" in explanations; these match the source labels shown
+  under each question. The cited sources remain the authority, not the prose.
 - **Quiz topic filter:** dense search always returns neighbours, so a topic that is
   not in the materials still produces a quiz from the closest content instead of
   an error.
