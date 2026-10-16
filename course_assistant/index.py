@@ -344,7 +344,8 @@ class HybridRetriever:
         its candidates' text joined plus its image, and every chunk takes its page's
         score. At most `settings.rerank_candidates` pages are scored; candidates from
         further pages keep their fused order behind the scored ones. Within a page,
-        the fused score breaks ties, so chunk order there is unchanged.
+        the fused score breaks ties, so chunk order there is unchanged. A page whose
+        image file is missing is scored on its text only.
         """
         pages: OrderedDict[str, list[Evidence]] = OrderedDict()
         for e in candidates:
@@ -354,7 +355,10 @@ class HybridRetriever:
         for key in keys:
             group = pages[key]
             text = "\n\n".join(e.chunk.text for e in group)[: self.RERANK_TEXT_CHARS]
-            image = next((e.image_path for e in group if e.image_path), None)
+            # A page image can be missing on disk (deleted data/pages, interrupted
+            # ingestion). Score that page on its text alone rather than letting the
+            # file error stop the whole answer or quiz.
+            image = next((e.image_path for e in group if e.image_path and e.image_path.exists()), None)
             payload.append({"text": text, "image": str(image) if image else None})
         scores = [float(s) for s in self.services.rerank.rerank(query, payload)]
         if len(scores) != len(keys):

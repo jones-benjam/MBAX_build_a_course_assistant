@@ -106,6 +106,32 @@ def test_reranker_wrong_score_count_degrades_to_fused_order(assistant):
     assert res.evidence
 
 
+def test_missing_page_image_does_not_crash_answers_or_quizzes(assistant):
+    """Regression: the HTTP reranker reads each image file, so a missing page image
+    raised a file error that stopped answers and quiz generation."""
+    class FileReadingReranker:
+        def __init__(self, inner):
+            self.inner = inner
+            self.payloads = []
+
+        def rerank(self, query, candidates):
+            self.payloads.append(list(candidates))
+            for c in candidates:
+                if c.get("image"):
+                    Path(c["image"]).read_bytes()   # what HttpReranker does; raises if missing
+            return self.inner.rerank(query, candidates)
+
+    meme = assistant.retrieve("vibe coding on prod meme", top_k=1).evidence[0]
+    meme.image_path.unlink()
+    spy = FileReadingReranker(assistant.services.rerank)
+    assistant.services.rerank = spy
+    res = assistant.retrieve("vibe coding on prod meme", top_k=3)
+    assert res.reranked and res.warnings == []
+    assert str(meme.image_path) not in [p["image"] for p in spy.payloads[-1]]
+    assert assistant.ask("Explain the vibe coding on prod meme").sources
+    assert assistant.generate_quiz(topic="vibe coding meme", n_questions=1).questions
+
+
 # ---------------------------------------------------------------- parallel channels
 
 def test_parallel_channels_give_same_results_and_warnings(assistant):

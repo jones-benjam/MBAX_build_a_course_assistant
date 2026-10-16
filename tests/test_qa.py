@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 
@@ -58,7 +59,7 @@ def test_build_messages_tags_blocks_and_attaches_images(assistant):
     assert msgs[0].role == "system" and "missing_information" in msgs[0].text
     user = msgs[1]
     assert "[S1] syllabus.pdf, page " in user.text and "Question: How is grading weighted?" in user.text
-    assert "tag" not in user.text.lower()  # the model echoed "(Tag 5)" into prose when headers said "tag"
+    assert not re.search(r"\btag\b", user.text, re.I)  # the model echoed "(Tag 5)" into prose when headers said "tag"
     assert 1 <= len(user.images) <= 2 and all(p.exists() for p in user.images)
 
 
@@ -181,6 +182,6 @@ def test_evidence_headers_name_slides_and_prompts_forbid_tag_in_prose():
     assert evidence_header(5, deck) == "[S5] Week 5.pptx, slide 11"
     assert evidence_header(1, pdf) == "[S1] Syllabus.pdf, page 2"
     for prompt in (SYSTEM_PROMPT, QUIZ_SYSTEM_PROMPT):
-        assert 'Never write the word "tag"' in prompt or 'never write the word "tag"' in prompt
+        assert 'as "tags"' in prompt  # blocks must not be called tags in prose
         assert "TAG numbers" not in prompt
 

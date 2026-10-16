@@ -37,7 +37,7 @@ Rules:
 - Exactly 4 options per question, one clearly correct, the others plausible but wrong according to the evidence.
 - Give a short explanation of why the correct option is right, grounded in the evidence.
 - Put the numbers of the blocks each question is based on (the n in [S<n>]) in "sources". A block number is NOT a slide or page number: block [S2] may come from slide 17; cite 2, not 17. Never invent sources.
-- In questions, options and explanations, never write the word "tag" and never write block markers like [S2]. If you name a slide or page, use the slide or page number from that block's header (for example "slide 17"), not its block number.
+- In questions, options and explanations, never refer to the blocks or their numbers as "tags" and never write block markers like [S2] (the word "tag" is fine when the course content is about tags). If you name a slide or page, use the slide or page number from that block's header (for example "slide 17"), not its block number.
 - Vary question types (definitions, comparisons, numbers/dates, interpretation of diagrams or charts shown in images).
 Respond with a single JSON object and nothing else:
 {"questions": [{"question": "...", "options": ["...", "...", "...", "..."], "answer_index": 0, "explanation": "...", "sources": [1]}]}"""

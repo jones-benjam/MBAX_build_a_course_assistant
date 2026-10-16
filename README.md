@@ -209,12 +209,13 @@ set MOCK_SERVICES=1
 python -m pytest -q
 ```
 
-The offline suite has 86 tests: unit tests for parsing, chunking, indexing, fusion,
+The offline suite has 99 tests: unit tests for parsing, chunking, indexing, fusion,
 JSON validation, source support, quiz grading, animated-GIF handling, key redaction
 in error messages and the HTTP request formats, and end-to-end tests through the app
 for adding, duplicate uploads, removal, answering, missing information, quizzes, and
-services being unavailable. Three LibreOffice-dependent tests (two PPTX and one DOCX)
-are skipped if LibreOffice is not installed, so 83 run on a machine without it.
+services being unavailable, plus the retrieval speed-ups, query caching and
+control-token handling. Three LibreOffice-dependent tests (two PPTX and one DOCX)
+are skipped if LibreOffice is not installed, so 96 run on a machine without it.
 
 With a filled `.env`, ten more tests check the real services and the real course
 files: each endpoint, duplicate upload, a syllabus answer, the meme found through
@@ -337,11 +338,14 @@ has unit tests but has not yet been re-run against the live endpoint.
   "tag" numbers, and quiz explanations sometimes echoed them or named the wrong
   slide (the committed `docs/screenshots/quiz-light.png` predates the fix: its Q1
   says "Slide 5 (Tag 5)" while citing Week 5 slide 11). Evidence is now labelled by
-  document and slide or page, and the prompts forbid the word "tag" in prose. In a
+  document and slide or page, and the prompts forbid calling the evidence blocks
+  "tags" (the word itself stays allowed for course content about tags). In a
   check of 30 real quiz questions, explanations naming a slide outside their cited
   sources fell from 5 to 0, and none mentioned tags. The model still sometimes
   writes markers like "[S2]" in explanations; these match the source labels shown
-  under each question. The cited sources remain the authority, not the prose.
+  under each question. This differs by design: answers may carry inline "[S2]"
+  markers, which match the numbered sources listed under the answer, while quiz
+  prompts ask for none. The cited sources remain the authority, not the prose.
 - **Quiz topic filter:** dense search always returns neighbours, so a topic that is
   not in the materials still produces a quiz from the closest content instead of
   an error.
