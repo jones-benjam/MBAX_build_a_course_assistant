@@ -1,7 +1,7 @@
-# Handoff: continuing this project in Claude Code on a local machine
+# Handoff: project status and continuation notes
 
-This note lets a fresh Claude Code session (or a teammate) pick up exactly where the
-cloud session stopped. Read `docs/PLAN.md` first for the 10-step plan.
+This note lets a teammate or a coding agent (Hermes, Claude Code, others) pick up the
+project. Read `AGENTS.md` and `docs/PLAN.md` first; team workflow is in `CONTRIBUTING.md`.
 
 ## Why the work moved to a local machine
 
@@ -10,7 +10,7 @@ sandbox's egress proxy refuses to forward an `Authorization` header over an unen
 connection, so the real services could not be called from the cloud. On a laptop the
 plain-HTTP calls work directly and **no code changes are needed** for that.
 
-## Status at handoff (2026-10-15)
+## Status (updated 2026-10-15, after PR #32)
 
 | Step | Status | Branch / PR |
 |------|--------|-------------|
@@ -24,21 +24,44 @@ plain-HTTP calls work directly and **no code changes are needed** for that.
 | 7 Thorough testing incl. **real services** | done: endpoint formats verified (`docs/ENDPOINTS.md`), HTTP clients fixed, 10 live tests pass on the real endpoints + course files, UI walked through on real data; fixes: LibreOffice app-bundle lookup, block-tag vs slide-number citation rescue | `step-7-testing` → PR #7 |
 | 8 Evaluation (5–10 questions, rerank on vs off) | done: `scripts/evaluate.py`, 10 questions, results in `data/results/`, write-up `docs/EVALUATION.md` | `step-8-evaluation` → PR #8 |
 | 9 README, SVG architecture diagram, real screenshots | done in PRs: #18 AGENTS.md/CONTRIBUTING, #19 `docs/architecture.svg`, #20 real screenshots, #22 README | `step-9-*` |
-| 10 Issues, reviews, fresh-clone check, submit | in progress: PRs #1–#8 and #18–#23 reviewed by a non-author (#25, #27, #29 still need reviews); offline fresh-clone check passed (#16, malu/Vanessa); live fresh-clone check and Canvas submission (#17) remain | issues #16, #17 |
+| 9+ Team follow-ups | merged: #23 + #29 animated-GIF repair (malu1954-wq, Mackdug876; closes #21), #25 setup-doc gaps from the fresh-clone review (Mackdug876), #27 evaluation write-up corrections (Mackdug876), #31 key redaction before truncation, lint, README count (Mackdug876), #32 redaction tests for JSON and plain text, doc corrections (vanessabagtas). Open: #33 stop evidence tag numbers leaking into prose | various |
+| 10 Issues, reviews, fresh-clone check, submit | in progress, see "Reviews" and "Open items" below | issues #16, #17 |
 
-PRs are **stacked**: each PR's base is the previous step's branch. Merge in order and
-retarget the next PR to `main` after each merge (or merge the whole stack from
-`step-6-ui` once reviewed). `step-6-ui` contains everything.
+All step PRs are merged into `main`; the stacked `step-*` branches are history. New
+work branches from `main`, one branch and PR per issue (see `CONTRIBUTING.md`).
+Current test counts are in the README "Tests" section; the offline suite and
+`pyflakes` are clean on `main`, and the 10 live tests pass against the class endpoints.
 
-`./run_tests.sh` → 71 tests pass offline (`MOCK_SERVICES=1`; 2 skip without LibreOffice, 10 live tests skip without `LIVE_SERVICES=1`), `pyflakes` clean.
+### Reviews
 
-## Everything that has only been checked with mock services
+- PRs #1–#8 and #18–#22 were merged without a prior review, at the project owner's
+  request, and reviewed afterwards: Mackdug876 left review comments on each,
+  vanessabagtas on #7.
+- #23 was merged while its review said "changes requested" (transparent GIFs turned
+  black); the requested change landed in #29.
+- #25, #27, #29 and #32 were merged without a review; #31 was reviewed after merge
+  (vanessabagtas).
+- Going forward, use the reviewer checklist in `CONTRIBUTING.md` and review before merge.
 
-- Retrieval **quality** (mock embeddings are hashed bag-of-words; rankings on real
-  files were poor, as expected).
-- Whether the real LLM honours the JSON schema and the "missing information" rule.
-- The exact request/response format of each class endpoint (see below).
-- `docs/screenshots/*` were captured on mock services and must be re-captured.
+### Open items
+
+- #33 (open PR): evidence headers and prompts no longer invite "tag" numbers into
+  prose; needs a review.
+- Issues #9 and #10 (reviews of PRs #7 and #8): reviews are posted; close when agreed.
+- Issue #16 (fresh-clone check): offline part done by malu1954-wq and vanessabagtas. On
+  2026-10-15 a fresh clone of `main` at 0990f28 also passed the 10 live tests against
+  the class endpoints (run during the repository review); a teammate's own live run
+  is still worth recording on the issue.
+- Issue #17: final submission on Canvas.
+- Optional: the quiz screenshots and `data/results/` predate the GIF repair and the
+  prompt change in #33; recapture or re-run if time allows.
+
+## Real-service verification (history)
+
+Before Step 7 everything had only run on mock services. Since then retrieval quality,
+the LLM's JSON and missing-information behaviour, every endpoint's request format, and
+the screenshots have all been checked on the class endpoints (see the Step 7 findings
+below, `docs/ENDPOINTS.md` and `docs/EVALUATION.md`).
 
 ## Class endpoints: verified 2026-10-15 — see `docs/ENDPOINTS.md`
 
@@ -85,7 +108,9 @@ Keys are sent as `Authorization: Bearer <key>`.
 
 - Contact-sheet check of all 122 converted slides: correct except three animated
   GIFs (Week 2 s37, Week 4 s5, Week 5 s8) that LibreOffice renders as a blank first
-  frame. Follow-up: issue #21.
+  frame. Fixed in #23 and #29: a blank GIF area is replaced by the GIF's most detailed
+  frame. Verified on the real slides during the 2026-10-15 review. Indexes built
+  before the fix keep the old page images until the deck is removed and re-added.
 - Week 4 slides 12 and 13 print the class endpoint key in their text. Course files
   are gitignored; never screenshot, quote or save answers from those slides.
 
@@ -103,11 +128,15 @@ Week 2–5 decks. Ingestion was verified on all of them (Week 2 = 42 slides; the
   nothing; dense search always returns neighbours, so a relevance threshold could be
   added once real scores are known.
 - `KeywordIndex` is rebuilt in memory on every add/remove (fine at course scale).
-- Reranker/answer latency with real images is unmeasured.
+- Latency is measured in `docs/EVALUATION.md` (median 4.2 s per answer with the
+  reranker, 1.7 s without).
+- Saved chunks store page-image paths relative to the project folder, so the app must
+  be started from the repository root. If a page image is missing, the reranker raises
+  a file error that stops the request instead of degrading like a service outage.
 
-## Suggested first prompt for the local session
+## Suggested first prompt for a coding agent
 
-> Read docs/PLAN.md and docs/HANDOFF.md. We are at Step 7. First verify each class
-> endpoint's request format against its /docs and fix course_assistant/services/http_clients.py,
-> then run the app on the real course files (in ../course_materials), add end-to-end tests,
-> and fix what breaks. Check in after each step, bug-check after each step.
+> Read AGENTS.md and docs/HANDOFF.md. Take open issue #<n>: work on a branch from
+> main, keep ./run_tests.sh and pyflakes green, and open a pull request with the
+> issue's checklist for a teammate to review. Never put the API key or course files
+> in the repository.
